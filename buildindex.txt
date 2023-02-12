@@ -1,0 +1,191 @@
+// Programa  : BUILDINDEX
+// Fecha/Hora: 23/10/2004
+// Propósito : Crear Indice de la Tabla Expecífica
+// Creado Por: Juan Navas
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(cTable , lDelete , lIntRef, lSay)
+   LOCAL nContar:=0,oOdbc,lPadre:=.F.
+   LOCAL cTabla,aIndex:={},i,lResult,atablas,cSql,cFileInt,cMemo:="",cDsn:=""
+   LOCAL aTabIndex:={},lError:=.f.,oCursor,nAT,lOpen,nAt
+   LOCAL aIndexTab:={},cLine:=CRLF+Repli("=",80)+CRLF
+   LOCAL oDb:=OpenOdbc(oDp:cDsnConfig)
+
+//? oDb:ClassName(),oDb:cName,oDp:cDsnConfig
+
+   DEFAULT cTable:="DPMOVINV",lDelete:=.F.,oDp:cSql:="",lIntRef:=.F.
+
+   DEFAULT lSay:=.F.
+
+   cTable:=ALLTRIM(cTable)
+
+   lIntRef:=.F. // JN 10/06/2020 Check IntReferencial Desactivada, se plica SET FOREIGN_KEY_CHECKS = 0; para crear la integridad
+
+   cFileInt:="DATADBF\"+ALLTRIM(cTable)+".IND"
+
+//   IF ValType(oDp:oSay)=NIL
+     IF oDp:oSay=NIL
+       // DpMsgRun("Procesando","Creando Indices "+cTable)
+     ELSE
+
+       IF lSay
+         oDp:oSay:SetText("Creando Indices "+cTable)
+       ENDIF
+
+     ENDIF
+
+//
+// Sin Clave no genera indices
+// 17/02/2020 
+//
+   oCursor:=OpenTable(" SELECT IND_INDICE,IND_CLAVE,TAB_DSN FROM DPINDEX "+;
+                      " INNER JOIN DPTABLAS ON TAB_NOMBRE=IND_TABLA "+;
+                      " WHERE IND_TABLA"+GetWhere("=",cTable)+" AND TAB_VISTA=0 "+;
+                      "   AND LEFT(TAB_NOMBRE,5)"+GetWhere("<>","VIEW_")+" AND IND_CLAVE"+GetWhere("<>",""),.T.,oDb)
+
+   oCursor:Gotop()
+
+   IF oCursor:RecCount()=0
+      RETURN .F.
+   ENDIF
+
+   aIndex :={}
+
+   WHILE !oCursor:EOF()
+
+     
+     IF !oDp:oFileTracer=NIL
+        oDp:oFileTracer:AppStr( "BUILDINDEX ->"+cTable+CRLF)
+     ENDIF
+
+     IF LEN(ALLTRIM(oCursor:IND_INDICE))=1
+        oCursor:Replace("IND_INDICE",cTable+ALLTRIM(oCursor:IND_INDICE))
+     ENDIF
+
+     cSql:=" CREATE INDEX "+ALLTRIM(oCursor:IND_INDICE)+" ON "+ALLTRIM(cTable)+" ( "+ALLTRIM(oCursor:IND_CLAVE)+" )"
+
+     IF !EJECUTAR("BUILDINDEXCHK",cTable,oCursor:IND_CLAVE)
+        oCursor:DbSKip()
+        LOOP
+     ENDIF
+
+     IF !(oDp:cTypeBD="MYSQL")
+
+       lPadre:=COUNT("DPLINK","LNK_TABLES"+GetWhere("=",cTable)+" AND (LNK_UPDATE=1 OR LNK_DELETE=1)",oDb)>0
+
+       IF lPadre .AND. (","$oCursor:IND_CLAVE) // Varias Claves
+
+          cSql:=" ALTER TABLE "+cTable+" ADD CONSTRAINT "+ALLTRIM(oCursor:IND_INDICE)+" "+ALLTRIM(oCursor:IND_CLAVE)+" )"
+
+       ENDIF
+
+     ENDIF
+
+     cMemo:=cMemo+IIF(EMPTY(cMemo),"",CRLF+";"+CRLF)+cSql
+     AADD(aIndexTab,ALLTRIM(oCursor:IND_INDICE))
+     AADD(aIndex   ,cSql)
+     oCursor:DbSkip()
+
+   ENDDO
+
+   FERASE(cFileInt)
+
+   IF !EMPTY(cMemo)
+     // MEMOWRIT(cFileInt,cMemo)
+   ENDIF
+
+   oCursor:End()
+// oDp:cDsn     :=SQLGET("DPTABLAS","TAB_DSN","TAB_NOMBRE"+GetWhere("=",cTable),oDb)
+
+   oCursor:=OpenTable("SELECT TAB_DSN FROM DPTABLAS WHERE TAB_NOMBRE"+GetWhere("=",cTable),.T.,oDb)
+   cDsn   :=oCursor:TAB_DSN
+   oCursor:End()
+
+   IF Empty(cDsn)
+      MensajeErr("Tabla "+cTable+" no esta en DPTABLAS","BUILDINDEX")
+      RETURN .F.
+   ENDIF
+
+   oOdbc    :=OpenOdbc(cDsn) // GetOdbc(cTable)
+   aTabIndex:=oOdbc:GetIndex( cTable )
+
+   // Remueve los indices existentes
+
+   FOR I := 1 TO LEN(aTabIndex)
+
+     cSql:="DROP INDEX "+UPPE(cTable)+"."+aTabIndex[i]
+
+     IF !oOdbc:cType$"ADT,DBF"
+       cSql:="DROP INDEX "+ALLTRIM(aTabIndex[I])+ " ON "+UPPE(ALLTRIM(cTable))
+     ENDIF
+
+     IF !oOdbc:cType="MYSQL"
+        cSql:="ALTER TABLE '"+cTable+"' DROP INDEX "+aTabIndex[I]
+     ENDIF
+
+     // 11/11/2022 si la tabla existe
+
+     IF EJECUTAR("DBISTABLE",oOdbc,cTable,.T.)
+
+       IF lDelete .AND. oOdbc:IsIndex(cTable,aTabIndex[I]) .AND. "PRIMARY"!=ALLTRIM(aTabIndex[I])
+
+         // Debe Revisar si el Indice Corresponde a una Relación
+         oDp:cSql:=oDp:cSql + IIF( Empty(oDp:cSql) , "" , cLine)+cSql
+
+         DPWRITE("TEMP\CREATE_INDEX_"+cTable+".SQL",cSql)
+
+         IF !oODbc:Execute(cSql) 
+           EJECUTAR("DPINTSAVEFAILED",cTable,"",oOdbc:cName,cSql,"DROPINDEX") // Guarda la Incidencia  
+           oDp:cSql:=oDp:cSql + CRLF + "// Borrado de Indice no Ejecutado, Posiblente tiene Integridad Referencial"+CRLF
+         ENDIF
+
+        ENDIF
+
+      ENDIF
+
+    NEXT
+
+    // Aqui Genera los Indice
+    oDp:cSql:=""
+
+   IF EJECUTAR("DBISTABLE",oOdbc,cTable,.T.)
+
+
+    FOR i := 1 TO len(aIndex)
+
+      IF !oOdbc:IsIndex(cTable,aIndexTab[I]) 
+
+        oDp:cSql:=oDp:cSql + IIF(Empty(oDp:cSql), "" , cLine )+aIndex[i]
+
+        IF !oODbc:Execute(UPPE(aIndex[i])) .AND. lIntRef
+           EJECUTAR("DPINTSAVEFAILED",cTable,"",oOdbc:cName,aIndex[i],"CREATEINDEX") // Guarda la Incidencia  
+           MensajeErr(aIndex[I],"Indice no pudo ser Creado ")
+           // Debe Registrar la Incidencia
+        ENDIF
+
+      ENDIF
+
+     NEXT
+
+   ENDIF
+
+  // JN 28/11/2016, Asignar INNODB a la tablas que genera los Indices antes de la integridad referencial
+
+  IF !EJECUTAR("ISINNODB",cTable,oOdbc)
+     EJECUTAR("SETINNODB",cTable,oOdbc)           
+  ENDIF            
+
+  // Aqui Genera las Claves PrimariaS
+  // JN 06/11/2020, genera recursividad con este programa y se cae
+  // EJECUTAR("DPTABLAPRIMARY",cTable)
+
+  IF lIntRef
+    ? "NO PUEDE CREAR INTEGRIDAD REFERENCIAL NECESITAS MAS INDICES DESDE BUILDINDEX",cTable
+//     EJECUTAR("BUILDINTREF",cTable,.F.) // Solicita la Regeneración de Integridad REF
+  ENDIF
+
+  oOdbc:=NIL
+
+RETURN
+// EOF

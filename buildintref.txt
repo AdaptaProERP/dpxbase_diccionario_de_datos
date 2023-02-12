@@ -1,0 +1,395 @@
+// Programa   : BUILDINTREF
+// Fecha/Hora : 03/09/2004 01:14:12
+// Propósito  : Crear Integridad Referencial
+// Creado Por : Juan Navas
+// Llamado por:
+// Aplicación :
+// Tabla      :
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(cTable,lDelete,cTableD,lIndex,lSay)
+  LOCAL cSql,cDelete:="",lIntRef:=.T.,cName
+  LOCAL oOdbc
+  LOCAL oDpLnk,cLine:=CRLF+REPLI("-",80)+CRLF
+  LOCAL cFileInt,cMemo:="",cMySqlErr:=""
+  LOCAL cFieldD:="",cFieldS:="",cRunPre,cRunPos
+  LOCAL lResp:=.F.,cWhere2
+
+  DEFAULT cTable  :="DPCTA",;
+          lDelete :=.F.    ,;
+          oDp:cSql:=""     ,;
+          lIndex  :=.T.    ,;
+          lSay    :=.F.
+
+
+  DEFAULT oDp:lCrearTablas:=.T.
+
+
+// oDp:lTracer:=.T.
+
+  cFileInt:="DATADBF\"+ALLTRIM(cTable)+".REL"
+
+//  oDp:cFileToScr:="c:\x\buildintref"+cTable+".txt"
+
+  CursorWait()
+
+  IF LEFT(cTable,5)="VIEW_"
+     RETURN .F.
+  ENDIF
+
+  oOdbc:=GETODBC(cTable)
+
+  /*
+  // Nuevos Campos
+  */
+
+//  EJECUTAR("DPCAMPOSADD","DPLINK","LNK_LNKDEL","L",01,0,"Reparar Delete"   ,"",.T.,.F.,".F.")
+//  EJECUTAR("DPCAMPOSADD","DPLINK","LNK_LNKADD","L",01,0,"Reparar Agregando","",.T.,.F.,".F.")
+
+/*
+  oDpLnk:=OpenTable("SELECT LNK_TABLED,LNK_TABLES,LNK_FIELDS,LNK_FIELDD,LNK_DELETE,LNK_PRGPRE,LNK_PRGPOS,LNK_LNKDEL,LNK_LNKADD "+;
+          " FROM DPLINK "+;
+          " INNER JOIN DPTABLAS ON LNK_TABLED=TAB_NOMBRE AND TAB_VISTA=0 "+;
+          " WHERE LNK_TABLES"+;
+          GetWhere("=",cTable)+" AND LNK_UPDATE=1 AND LNK_RUN=1 AND "+;
+          " LEFT(LNK_TABLED,5)"+GetWhere("<>","VIEW_")+" AND "+;
+          " LEFT(LNK_TABLES,5)"+GetWhere("<>","VIEW_")+;
+          IF(!Empty(cTabled)," AND LNK_TABLED"+GetWhere("=",cTableD),""),.T.)
+*/
+
+  cSql:="SELECT LNK_TABLED,LNK_TABLES,LNK_FIELDS,LNK_FIELDD,LNK_DELETE,LNK_PRGPRE,LNK_PRGPOS,LNK_LNKDEL,LNK_LNKADD "+;
+        " FROM DPLINK "+;
+        " INNER JOIN DPTABLAS ON LNK_TABLED=TAB_NOMBRE AND TAB_VISTA=0 "+;
+        " WHERE LNK_TABLES"+;
+        GetWhere("=",cTable)+" AND LNK_UPDATE=1 AND LNK_RUN=1 AND "+;
+        " LEFT(LNK_TABLED,5)"+GetWhere("<>","VIEW_")+" AND "+;
+        " LEFT(LNK_TABLES,5)"+GetWhere("<>","VIEW_")+;
+        IF(!Empty(cTabled)," AND LNK_TABLED"+GetWhere("=",cTableD),"")
+
+
+  oDpLnk:=OpenTable(cSql,.T.)
+
+  IF ValType(oDpLnk:LNK_DELETE)<>"L"
+     EJECUTAR("CHKLOGICOS",.T.)
+     EJECUTAR("SETLOGICOS")
+     oDpLnk:=OpenTable(cSql,.T.)
+  ENDIF
+
+  oDpLnk:GoTop()
+
+  WHILE !oDpLnk:Eof()
+
+     lIntRef:=.F.
+
+
+     // Incluye los Indices en DPINDEX
+
+     IF !oDp:oFileTracer=NIL
+        oDp:oFileTracer:AppStr( "BUILDINTREF ->"+oDpLnk:LNK_TABLED+CRLF)
+     ENDIF
+
+
+     // Debe revisar la existencia de los indices
+     IF lIndex .OR. .T.
+       ChkIndex(ALLTRIM(oDpLnk:LNK_TABLED),ALLTRIM(oDpLnk:LNK_FIELDD),ALLTRIM(oDpLnk:LNK_TABLES))
+       ChkIndex(ALLTRIM(oDpLnk:LNK_TABLES),ALLTRIM(oDpLnk:LNK_FIELDS),ALLTRIM(oDpLnk:LNK_TABLED))
+     ENDIF
+
+     // Repara los datos de Integridad 03/03/2016
+     // IF oDp:lChkIntRef .OR. oDpLnk:LNK_LNKDEL .OR. oDpLnk:LNK_LNKADD
+     IF (oDpLnk:LNK_LNKDEL .OR. oDpLnk:LNK_LNKADD) .AND. !oDp:lCrearTablas .AND. lIntRef
+
+       IF !oDp:oFileTracer=NIL
+         oDp:oFileTracer:AppStr( "FIXINTREF ->"+oDpLnk:LNK_TABLES+" -> "+oDpLnk:LNK_TABLED+CRLF)
+       ENDIF
+
+       EJECUTAR("FIXINTREF",ALLTRIM(oDpLnk:LNK_TABLES),ALLTRIM(oDpLnk:LNK_TABLED))
+     ENDIF
+
+     /*
+     // Necesita Cambiar Typo de Tabla
+     */
+     
+     IF oDp:cTypeBD="MYSQL" .AND. !oDp:lCrearTablas .AND. lIntRef
+
+       lIntRef:=EJECUTAR("ISINTREF",oDpLnk:LNK_TABLED,oDpLnk:LNK_TABLES)  
+
+       // Repara Integridad Referencial segun diccionario de Datos
+
+// JN 13/11/2016, Ahora se ejecuta si la integrida falla, antes hacia lento el proceso de generación de Integridad
+//       IF Empty(oDpLnk:LNK_PRGPRE) 
+//         EJECUTAR("DPTABLEFIXINT",ALLTRIM(oDpLnk:LNK_TABLES),ALLTRIM(oDpLnk:LNK_TABLED))
+//       ENDIF
+
+       IF lIntRef 
+         oDpLnk:DbSkip()
+         LOOP
+       ENDIF
+
+     ENDIF
+
+     IF !Empty(oDpLnk:LNK_PRGPRE) .AND.  !oDp:lCrearTablas
+
+        oDpLnk:LNK_PRGPRE:=STRTRAN(oDpLnk:LNK_PRGPRE,CHR(10),"")
+        oDpLnk:LNK_PRGPRE:=STRTRAN(oDpLnk:LNK_PRGPRE,CHR(13),"")
+
+        IF !oDp:oFileTracer=NIL
+          oDp:oFileTracer:AppStr( "BUILDINDEX ->"+oDpLnk:LNK_PRGPRE+CRLF)
+        ENDIF
+
+        EJECUTAR(oDpLnk:LNK_PRGPRE)
+
+     ENDIF
+
+     /*
+     // 06/12/2020, Si la tabla tiene Integridad, no realizara la integridad
+     */
+
+     // La Integridad Requiere las Claves Correspondan a los Indices
+     cSql:="ALTER TABLE "+ALLTRIM(oDpLnk:LNK_TABLED)+" DROP FOREIGN KEY "+CRLF+;
+            ALLTRIM(oDpLnk:LNK_TABLES)+"_"+ALLTRIM(oDpLnk:LNK_TABLED)
+
+     cDelete:=cSql
+
+     IF !lDelete .AND. .F.
+
+       cSql:=""
+
+     ELSE
+
+       oDp:cSql:=oDp:cSql + IIF(EMPTY(cSql),"",cLine)+cSql
+
+     ENDIF
+
+     cMemo:=cMemo+IIF(EMPTY(cMemo),"",CRLF+";"+CRLF)+cSql
+
+     // 22/01/2020
+     lIntRef:=EJECUTAR("ISINTREF",oDpLnk:LNK_TABLED,oDpLnk:LNK_TABLES)
+     IF lIntRef
+        oDpLnk:DbSkip()
+        LOOP
+     ENDIF
+
+     ChkIndex(ALLTRIM(oDpLnk:LNK_TABLED),ALLTRIM(oDpLnk:LNK_FIELDD),ALLTRIM(oDpLnk:LNK_TABLES))
+     ChkIndex(ALLTRIM(oDpLnk:LNK_TABLES),ALLTRIM(oDpLnk:LNK_FIELDS),ALLTRIM(oDpLnk:LNK_TABLED))
+
+     cName:=ALLTRIM(oDpLnk:LNK_TABLES)+"_"+;
+            ALLTRIM(oDpLnk:LNK_TABLED)
+
+     cSql:=" ALTER TABLE "+ALLTRIM(oDpLnk:LNK_TABLED)+" ADD CONSTRAINT "+cName+CRLF+;
+           " FOREIGN KEY ("+ALLTRIM(oDpLnk:LNK_FIELDD)+")"+CRLF+;
+           " REFERENCES "+ALLTRIM(oDpLnk:LNK_TABLES)+"("+ALLTRIM(oDpLnk:LNK_FIELDS)+") "+;  
+           " ON UPDATE CASCADE"
+
+     // incidencia campo no es Lógico
+     IF ValType(oDpLnk:LNK_DELETE)<>"L"
+        oDpLnk:LNK_DELETE:=.F.
+     ENDIF
+
+     IF oDpLnk:LNK_DELETE
+       cSql:=cSql+CRLF+" ON DELETE CASCADE"
+     ENDIF
+
+     DpWrite("TEMP\FOREIGN_"+cName+".SQL",cSql)
+
+     oDp:cSql:=oDp:cSql+cSql+IIF(EMPTY(cSql),"",cLine)+cSql
+ 
+     cMemo:=cMemo+IIF(EMPTY(cMemo),"",CRLF+";"+CRLF)+cSql
+
+     oOdbc:=GETODBC(cTable)
+
+// lIntRef:=.T.
+
+     oOdbc:Execute("SET FOREIGN_KEY_CHECKS = 0") // Restaurar
+
+     IF !lIntRef .AND. !oOdbc:Execute(cSql,"Integridad Refencial",.F.)
+
+       cMySqlErr:=IF(oOdbc:cType="MYSQL",oOdbc:oConnect:oError:GetError(),"")
+
+       IF lSay
+          MsgMemo("Requiere Proceso de Revisión de datos y reparación"+CRLF+CLPCOPY(cSql)+CRLF+cMySqlErr,"Integridad Referencial Fallida")
+       ENDIF
+ 
+       IF !Empty(oDpLnk:LNK_PRGPRE)
+          oDpLnk:LNK_PRGPRE:=STRTRAN(oDpLnk:LNK_PRGPRE,CHR(10),"")
+          oDpLnk:LNK_PRGPRE:=STRTRAN(oDpLnk:LNK_PRGPRE,CHR(13),"")
+          EJECUTAR(oDpLnk:LNK_PRGPRE)
+       ENDIF
+
+       // Si la Integridad falla, ahora ejecuta la reparación
+       // IF Empty(oDpLnk:LNK_PRGPRE) .AND. oDp:lChkIntRef 
+       // JN 14/11/2016 Para todos los Casos
+
+// ? oDpLnk:LNK_TABLES,oDpLnk:LNK_TABLED,"DPTABLEFIXINT"
+
+       EJECUTAR("DPTABLEFIXINT",ALLTRIM(oDpLnk:LNK_TABLES),ALLTRIM(oDpLnk:LNK_TABLED))
+
+       DPWRITE("TEMP\BUILDINTREF_"+ALLTRIM(oDpLnk:LNK_TABLES)+"_"+ALLTRIM(oDpLnk:LNK_TABLED)+".SQL",cSql)
+
+       lResp:=oOdbc:Execute(cSql,"Integridad Refencial",.F.) // Muestra Mensaje si Falla Nuevamente, Luego de la Reparación
+
+       IF !lResp
+
+  //!oOdbc:Execute(cSql,"Integridad Refencial",.F.) // Muestra Mensaje si Falla Nuevamente, Luego de la Reparación
+
+          cMySqlErr:=IF(oOdbc:cType="MYSQL",oOdbc:oConnect:oError:GetError(),"")
+
+          DPWRITE("TEMP\intfailedF_"+ALLTRIM(oDpLnk:LNK_TABLES)+"_"+ALLTRIM(oDpLnk:LNK_TABLED)+".SQL",cSql+CRLF+cMySqlErr)
+
+          EJECUTAR("DPINTSAVEFAILED",ALLTRIM(oDpLnk:LNK_TABLES),ALLTRIM(oDpLnk:LNK_TABLED),NIL,cSql,NIL,cMySqlErr)
+
+          IF lSay
+            MsgMemo("Requiere Intervención de Personal Especializado para Repara la Consistencia de las tablas"+CRLF+;
+                    "Será almacendo log de Ejecución en Carpeta ")
+          ENDIF
+
+
+          cWhere2:="LNK_TABLES"+GetWhere("=",oDpLnk:LNK_TABLES)+" AND "+;
+                   "LNK_TABLED"+GetWhere("=",oDpLnk:LNK_TABLED)
+
+          EJECUTAR("DPCHKISINTREF",cWhere2) // Obtiene la lista de sentencias SQL y Genera Archivo LOG con la traza 
+
+          lMkDir(GETDSN(cTable))
+          AEVAL(oDp:aErrInt,{|a,n,cFile|cFile:=ALLTRIM(GETDSN(cTable))+"\"+a[1]+"_"+a[4]+".sql",;
+                                        DPWRITE(cFile,a[8]),;
+                                        cFile:=ALLTRIM(GETDSN(cTable))+"\"+a[1]+"_"+a[4]+".txt",;
+                                        OpenTable(a[8],.t.):CTOTXT(cFile),;
+                                        EJECUTAR("DPINTSAVEFAILED",cTable,a[1],NIL,a[8])})
+       ENDIF
+  
+     ENDIF
+
+
+     SysRefresh(.T.)
+
+     IF !Empty(oDpLnk:LNK_PRGPOS) .AND. !oDp:lCrearTablas
+
+        IF !oDp:oFileTracer=NIL
+           oDp:oFileTracer:AppStr( "LNK_PRGPOS "+oDpLnk:LNK_PRGPOS+CRLF)
+        ENDIF
+
+        EJECUTAR(oDpLnk:LNK_PRGPOS)
+
+     ENDIF
+
+     oDpLnk:Skip()
+
+  ENDDO
+
+  oOdbc:Execute("SET FOREIGN_KEY_CHECKS = 1")
+
+
+  FERASE(cFileInt)
+
+  IF !EMPTY(cMemo)
+     // MEMOWRIT(cFileInt,cMemo)
+  ENDIF
+
+  oDp:cSql:=oDp:cSql+CRLF
+
+  oDpLnk:End()
+
+  // Genera los Primary KEY Multiples
+  EJECUTAR("DPTABLAPRIMARY",cTable)
+
+  CursorArrow()
+
+RETURN .T.
+
+/*
+// Revisa si la Clave Esta Indexada
+*/
+FUNCTION CHKINDEX(cTable,cField,cTabRef)
+  LOCAL lIndex:=.T.
+  LOCAL cCommand,oIndice,cIndice
+
+  cCommand:=SQLGET("DPCAMPOS","CAM_COMMAN","CAM_TABLE"+GetWhere("=",cTable)+;
+            " AND CAM_NAME"+GetWhere("=",cField))
+
+  IF !EMPTY(cCommand).AND."PRIMARY"$UPPE(cCommand)
+     RETURN .T.
+  ENDIF
+
+  oIndice:=OpenTable("SELECT * FROM DPINDEX WHERE IND_TABLA"+GetWhere("=",cTable)+;
+                     " AND IND_CLAVE"+GetWhere("=",cField)+;
+                     " ORDER BY IND_INDICE",.T.)
+
+  IF oIndice:RecCount()=0
+
+//   cIndice:=DPSQLGETMAX("DPINDEX","IND_INDICE","IND_TABLA"+GetWhere("=",cTable))
+     cIndice:=SQLINCREMENTAL("DPINDEX","IND_INDICE","IND_TABLA"+GetWhere("=",cTable))
+
+
+     IF EMPTY(cIndice)
+
+        cIndice:=ALLTRIM(cTable)+"1"
+
+     ELSE
+
+        cIndice:=DPINCREMENTAL32(cIndice,.F.)
+
+        IF ISALLDIGIT(cIndice)
+           cIndice:=cTable+"_"+cIndice
+        ENDIF
+
+//      cIndice:=ALLTRIM(cIndice)
+//      cIndice:=cTable+ALLTRIM(STR(VAL(RIGHT(cIndice,1)+1),2))
+
+     ENDIF
+
+     oIndice:Append()
+     oIndice:REPLACE("IND_TABLA" ,cTable )
+     oIndice:REPLACE("IND_CLAVE" ,cField )
+     oIndice:REPLACE("IND_INDICE",cIndice)
+     oIndice:REPLACE("IND_DESCRI","Int/Ref:"+cTabRef)
+     oIndice:REPLACE("IND_NUMTAB",SQLGET("DPTABLAS","TAB_NUMERO","TAB_NOMBRE"+GetWhere("=",cTable)))
+     oIndice:COMMIT()
+     lIndex:=.F.
+
+  ENDIF
+
+  oIndice:End()
+
+  EJECUTAR("BUILDINDEX",cTable) // Solicita la generacion del Indice
+  
+RETURN .T.
+/*
+// Verifica si Tiene Integridad Ref, no lo ejecuta
+*/
+/*
+FUNCTION CHKINTREF(cTable,cLink)
+  LOCAL cSql,aData,cExp,aIntRef:={},I,oOdbc,lResp:=.T.
+
+  DEFAULT cTable:="NMTRABAJADOR",cLink:="DPDPTO"
+
+  cTable:=ALLTRIM(cTable)
+  cLink :=ALLTRIM(cLink )
+  oOdbc :=GetOdbc(cTable)
+  cSql  :="SHOW TABLE STATUS FROM "+oOdbc:cDsn+" LIKE "+GetWhere("",cTable)
+  aData :=oOdbc:QueryRow( cSql , cTable)
+
+//  ? CLPCOPY(ATAIL(aData))
+
+  IF !EMPTY(aData)
+    cExp   :=UPPE(aData[Len(aData)])
+    aIntRef:=_VECTOR(cExp,";")
+  ENDIF
+
+// ViewArray(aIntRef)
+
+  FOR I=2 TO LEN(aIntRef)
+    IF "/"+cLink+"("$aIntRef[I]
+       lResp:=.F.
+    ENDIF
+  NEXT I
+
+  oOdbc:=NIL
+
+RETURN lResp
+*/
+
+// EOF
+// Buscar Integridad Ref En MYSQL
+// SHOW TABLE STATUS [FROM db_name] [LIKE \\\'pattern\\\']
+

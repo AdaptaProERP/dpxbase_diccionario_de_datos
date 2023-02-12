@@ -1,0 +1,102 @@
+// Programa   : BUILDINDEXCHK
+// Fecha/Hora : 13/07/2018 04:04:06
+// Propósito  : Revisa si los Campos Existen
+// Creado Por : Juan Navas
+// Llamado por: BUILDINDEX
+// Aplicación :
+// Tabla      :
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(cTable,cIndex)
+   LOCAL aIndex:={},I,oTable,lIndex:=.T.,lConfig
+   LOCAL cDirTmp:="TEMP\DATADBF\"
+   LOCAL cTableDbf,cDsn,oDb
+   LOCAL cUrl:="adaptaproyectoserp.com.ve",cIp
+
+   DEFAULT cTable:="DPALMACEN",;
+           cIndex:="ALM_CODIGO,ALM_CODDEP"
+
+   cIndex:=ALLTRIM(cIndex)
+   aIndex:=_VECTOR(cIndex)
+ 
+   cDsn   :=SQLGET("DPTABLAS","TAB_DSN,TAB_CONFIG","TAB_NOMBRE"+GetWhere("=",cTable))
+   lConfig:=DPSQLROW(2)
+   cDsn   :=IF(lConfig,oDp:cDsnConfig,cDsn)
+   oDb    :=OpenOdbc(cDsn)
+
+   IF !oDb:FILE(cTable)
+     EJECUTAR("DPCREATEFROMTXT",cTable+".TXT")
+   ENDIF
+
+   oTable:=OpenTable("SELECT * FROM "+cTable,.F.)
+  
+   FOR I=1 TO LEN(aIndex)
+
+     IF oTable:FIELDPOS(aIndex[I])=0
+        lIndex:=.F.
+     ENDIF
+
+   NEXT I
+
+   oTable:End()
+
+   IF !lIndex
+
+      // Debe Crear el Campo
+      EJECUTAR("DPFILSTRTAB",cTable)
+
+      CheckTable(cTable)
+
+      lIndex:=.T.
+      oTable:=OpenTable("SELECT * FROM "+cTable,.F.)
+  
+      FOR I=1 TO LEN(aIndex)
+
+// ? I,aIndex[I]
+
+       IF oTable:FIELDPOS(aIndex[I])=0
+          lIndex:=.F.
+       ENDIF
+
+      NEXT I
+
+      oTable:End()
+
+
+   ENDIF
+
+   IF !lIndex .AND. .F.
+
+      cTableDbf:=cTable+".PAQ"
+
+      MsgRun("Conectando con "+cUrl,"Leyendo",{|| cIp   :=GetHostbyName(cUrl) })
+
+
+      IF !("0.0.0.0"$cIp)
+
+        MsgRun("BUILDINDEX, Descargando Tabla "+cTable+" ["+cIndex+"] Desde AdaptaPro Server","Por favor espere",{||DPAPTGET(cTableDbf,cDirTmp,.F.),;
+                             EJECUTAR("PAQTODPTABLAS",cDirTmp)})
+
+        lIndex:=.T.
+
+      ENDIF
+     
+      CheckTable(cTable)
+
+      oTable:=OpenTable("SELECT * FROM "+cTable,.F.)
+
+      FOR I=1 TO LEN(aIndex)
+
+       IF oTable:FIELDPOS(aIndex[I])=0
+          lIndex:=.F.
+       ENDIF
+
+      NEXT I
+
+      oTable:End()
+
+   ENDIF
+   
+RETURN lIndex
+// EOF

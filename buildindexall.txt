@@ -1,0 +1,51 @@
+// Programa   : BUILDINDEXALL
+// Fecha/Hora : 04/08/2020 06:03:29
+// Propósito  : Crear Indices de todos los Indices
+// Creado Por : BUILDINDEXALL
+// Llamado por:
+// Aplicación :
+// Tabla      :
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(lConfig,lSay)
+  LOCAL X:=LOADTABLAS()
+  LOCAL aTablas:=ACLONE(oDp:aTablas),I
+
+  DEFAULT lConfig:=.F.,;
+          lSay   :=.F.
+
+  EJECUTAR("DPINDEXUNIQUE")
+
+  // 31/01/2023
+  SQLUPDATE("DPTABLAS","TAB_DSN",".CONFIGURACION","TAB_CONFIG=1")
+  LOADTABLAS(.T.)
+
+  IF lConfig
+    ADEPURA(aTablas,{|a,n| !a[3]=oDp:cDsnConfig})
+    EJECUTAR("CHKFIELDINDEX",oDp:cDsnConfig)
+  ELSE
+    ADEPURA(aTablas,{|a,n| !a[3]=oDp:cDsnData})
+    EJECUTAR("CHKFIELDINDEX",oDp:cDsnData)
+  ENDIF
+
+  IF lSay
+
+     DpMsgRun("Procesando","Creando Indice "+oDp:cDsnData,NIL,LEN(aTablas))
+     DpMsgSetTotal(LEN(aTablas))
+
+  ENDIF
+
+  FOR I=1 TO LEN(aTablas)
+
+     IF lSay
+       DpMsgSet(I,.T.,NIL,"Creando Indice "+aTablas[I,2]+" ["+LSTR(I)+"/"+LSTR(LEN(aTablas))+"]")
+     ENDIF
+
+     EJECUTAR("BUILDINDEX",aTablas[I,2])
+
+  NEXT I
+
+///ViewArray(aTablas)
+  
+RETURN

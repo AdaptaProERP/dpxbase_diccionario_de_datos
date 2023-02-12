@@ -1,0 +1,16 @@
+// Programa   : NMCAMPOSADD
+// Fecha/Hora : 18/11/2020 05:35:46
+// Propósito  : NMCAMPOSADD Agregar Campos Tablas de Nómina
+// Creado Por :
+// Llamado por:
+// Aplicación :
+// Tabla      :
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN()
+
+  EJECUTAR("DPCAMPOSADD","NMTRABAJADOR","PORCENPRES","N",5,2,"% de Incidencia sobre las prestaciones")
+
+RETURN .T.
+// EOF

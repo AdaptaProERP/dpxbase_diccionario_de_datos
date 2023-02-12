@@ -1,0 +1,73 @@
+// Programa   : DPLINKADD
+// Fecha/Hora : 13/03/2021 11:39:33
+// Propósito  : Agregar Vistas
+// Creado Por :
+// Llamado por:
+// Aplicación :
+// Tabla      :
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(cTableS,cTableD,cFieldS,cFieldD,lRun,lUpdate,lDelete,cFieldR)
+  LOCAL cWhere
+  LOCAL lVirtual:=.F.
+
+  DEFAULT cTableS:="DPDOCCLI",;
+          cTableD:="DPCLIENTESCERO",;
+          cFieldS:="DOC_CODSUC,DOC_TIPDOC,DOC_NUMERO",;
+          cFieldD:="CCG_CODSUC,CCG_TIPDOC,CCG_NUMDOC",;
+          lRun   :=.T.,;
+          lUpdate:=.T.,;
+          lDelete:=.T.,;
+          cFieldR:=""
+
+  IF !ValType(cFieldD)="D"
+//     ?  "DPLINKADD",cTableS,cTableD,cFieldS,cFieldD,lRun,lUpdate,lDelete,cFieldR,"cTableS,cTableD,cFieldS,cFieldD,lRun,lUpdate,lDelete,cFieldR"
+  ENDIF
+
+
+  IF oDp:oMsgRun<>NIL
+     oDp:oMsgRun:FRMTEXT("Evaluando Enlace "+cTableS+" Con "+cTableD)
+  ENDIF
+
+  IF oDp:oSay<>NIL
+     oDp:oSay:SetText("Evaluando Enlace "+cTableS+" Con "+cTableD)
+  ENDIF
+
+  cTableS:=ALLTRIM(cTableS)
+  cTableD:=ALLTRIM(cTableD)
+  cFieldS:=ALLTRIM(cFieldS)
+  cFieldD:=ALLTRIM(cFieldD)
+
+  // Enlace Virtual
+  IF !Empty(cFieldR)
+     lVirtual:=.T.
+  ENDIF
+
+//OpenTable("SELECT * FROM DPINDEX WHERE IND_TABLA"+GetWhere("=","DPCLIENTESCERO")):Browse()
+//  SQLDELETE("DPINDEX","IND_TABLA"+GetWhere("=","DPCLIENTESCERO"))
+
+//OpenTable("SELECT * FROM DPLINK WHERE LNK_TABLED"+GetWhere("=","")):Browse()
+
+  cWhere:="LNK_TABLES"+GetWhere("=",cTableS)+" AND "+;
+          "LNK_TABLED"+GetWhere("=",cTableD)
+
+  SQLDELETE("DPLINK",cWhere)
+
+  EJECUTAR("CREATERECORD","DPLINK",{"LNK_TABLES","LNK_TABLED","LNK_FIELDS","LNK_FIELDD","LNK_REFERE","LNK_RUN","LNK_UPDATE","LNK_DELETE","LNK_ACTIVO","LNK_VIRTUA","LNK_CATLGO"},; 
+                                   {cTableS     ,cTableD      ,cFieldS    ,cFieldD     ,cFieldR     ,lRun     ,lUpDate     ,lDelete     ,.T.         ,lVirtual    ,.F.       },;
+                                    NIL,.T.,cWhere)
+
+//? cTableD,"CREAR INDICES",cFieldD
+  EJECUTAR("DPINDEXADD",ALLTRIM(cTableD),ALLTRIM(cFieldD),"Vinculo "+cTableD+" con "+cFieldD    ,cTableD+"."+cFieldD) 
+
+  EJECUTAR("SETFIELDDEF")
+  EJECUTAR("BUILDINTREF",ALLTRIM(cTableS),NIL,ALLTRIM(cTableD))
+
+  ClearIntRef() // Remueve para lograr INNERJOIN( 
+
+  LOADTABLAS(.T.)
+
+RETURN .T.
+// EOF
+
