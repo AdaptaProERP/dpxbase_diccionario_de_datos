@@ -13,7 +13,7 @@ PROCE MAIN()
   LOCAL oDb:=OpenOdbc(oDp:cDsnData)
 
   AADD(aFields,{"CXO_CODCON","C",004,0,"Concepto"      ,""})
-  AADD(aFields,{"CXO_CODNOM","D",003,0,"Tipo de Nómina",""})
+  AADD(aFields,{"CXO_CODNOM","C",003,0,"Tipo de Nómina",""})
   AADD(aFields,{"CXO_ACTIVO","L",001,0,"Activo"        ,""})
 
   EJECUTAR("DPTABLEADD","NMTIPNOMXCONCEPTO","Tipo de Nómina por Concepto","<MULTIPLE>",aFields)
