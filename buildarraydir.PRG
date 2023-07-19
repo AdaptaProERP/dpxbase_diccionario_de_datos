@@ -8,12 +8,15 @@
 
 #INCLUDE "DPXBASE.CH"
 
-PROCE MAIN(cDir)
-  LOCAL aDir:=ARRAY(4)
-  LOCAL aText:={},nContar:=0,nLine:=1,nLen:=40
+PROCE MAIN(cDir,nLen,nArray)
+  LOCAL aDir:=ARRAY(0)
+  LOCAL aText:={},nContar:=0,nLine:=1
+  
+  DEFAULT nLen  :=40,;
+          nArray:=4 ,;
+          cDir:="AV. LIBERTADOR, C.C. LIBERTADOR LOCAL 3A, ZONA INDUSTRIAL I"
 
-  DEFAULT cDir:="AV. LIBERTADOR, C.C. LIBERTADOR LOCAL 3A, ZONA INDUSTRIAL I"
-
+  aDir :=ARRAY(nArray)
   aText:=_VECTOR(cDir," ")
   AEVAL(aDir,{|a,n| aDir[n]:=""})
 
