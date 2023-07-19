@@ -1,7 +1,7 @@
 // Programa   : IMPCLIENTECSV
 // Fecha/Hora : 07/07/2023 23:58:12
 // Propósito  : Importar Clientes 
-// Datos      : https://github.com/AdaptaProERP/dpxbase_diccionario_de_datos/blob/main/productosparalaventacon_tallas_y_colores.csv
+// Datos      : https://github.com/AdaptaProERP/dpxbase_diccionario_de_datos/blob/main/CLIENTES.CSV
 // Creado Por : Juan Navas
 // Llamado por:
 // Aplicación :
@@ -44,6 +44,11 @@ PROCE MAIN(lInicio)
   EJECUTAR("SETFIELDLONG","DPCLIENTES" ,"CLI_DIR3"   ,120)
   EJECUTAR("SETFIELDLONG","DPCLIENTES" ,"CLI_DIR4"   ,120)
 */
+
+  EJECUTAR("SETFIELDLONG","DPCLIENTES" ,"CLI_TEL1"   ,20)
+  EJECUTAR("SETFIELDLONG","DPCLIENTES" ,"CLI_TEL2"   ,20)
+  EJECUTAR("SETFIELDLONG","DPCLIENTES" ,"CLI_TEL3"   ,20)
+  EJECUTAR("SETFIELDLONG","DPCLIENTES" ,"CLI_TEL4"   ,20)
 
   EJECUTAR("CREATERECORD","DPCLICLA",{"CLC_CODIGO","CLC_DESCRI","CLC_ACTIVO" },;
                                      {cCodAct   ,"Indefinido",.T.          },;
@@ -113,7 +118,7 @@ PROCE MAIN(lInicio)
      oTable:ReplaceSpeed("CLI_CODIGO",cCodigo )
      oTable:ReplaceSpeed("CLI_NOMBRE",LEFT(cNombre,120))
      oTable:ReplaceSpeed("CLI_TIPPER",cTipPer )
-     oTable:ReplaceSpeed("CLI_TEL1"  ,LEFT(aLine[4],10))
+     oTable:ReplaceSpeed("CLI_TEL1"  ,LEFT(aLine[4],20))
      oTable:ReplaceSpeed("CLI_RIF"   ,cRif     )
      oTable:ReplaceSpeed("CLI_OBS1"  ,aLine[10])
      oTable:ReplaceSpeed("CLI_EMAIL" ,aLine[13])
