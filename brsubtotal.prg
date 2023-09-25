@@ -29,6 +29,11 @@ PROCE MAIN(oBrw,nCol,oMdiFrm)
 
    aData:=ACLONE(oBrw:aArrayData)
 
+   IF !__objHasMsg( oBrw, "aSubTotal") 
+     __objAddData(oBrw,"aSubTotal")
+     __objSendMsg(oBrw,"aSubTotal",{})
+   ENDIF
+
    // busca sub-Total para removerlo
    IF !__objHasMsg( oBrw, "nColSubTotal") 
      __objAddData(oBrw,"nColSubTotal")
@@ -45,6 +50,8 @@ PROCE MAIN(oBrw,nCol,oMdiFrm)
       //ADEPURA(aData,{|a,n| "Sub-Total"$a[oBrw:nColSubTotal]})
       RETURN .F.
    ENDIF
+
+  
 
    __objAddData(oBrw,"nColSubTotal")
    __objSendMsg(oBrw,"nColSubTotal",nCol)
