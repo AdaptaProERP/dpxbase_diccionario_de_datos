@@ -9,52 +9,50 @@
 #INCLUDE "DPXBASE.CH"
 
 PROCE MAIN(oBrw,nCol,oMdiFrm)
-   LOCAL aData,aGroup:={},oCol,uKey,nContar:=1,aTotal:={},aNew:={},I,aLine:={},aSubTotal:={}
+   LOCAL aData,aGroup:={},oCol:=NIL,uKey,nContar:=1,aTotal:={},aNew:={},I,aLine:={},aSubTotal:={}
    LOCAL aTotalO:={},nColSub
    LOCAL aSubT  :={}
 
-   IF oBrw=NIL
-       RETURN NIL
+   IF ValType(oBrw)="A"
+
+      aData  :=oBrw
+
+   ELSE
+
+     DEFAULT nCol:=oBrw:SelectedCol():nPos
+
+     oCol:=oBrw:aCols[nCol]
+
+     IF Empty(oBrw:aData)
+       oBrw:aData:=ACLONE(oBrw:aArrayData)
+     ENDIF
+
+     aData:=ACLONE(oBrw:aArrayData)
+
+     IF !__objHasMsg( oBrw, "aSubTotal") 
+       __objAddData(oBrw,"aSubTotal")
+       __objSendMsg(oBrw,"aSubTotal",{})
+     ENDIF
+
+     // busca sub-Total para removerlo
+     IF !__objHasMsg( oBrw, "nColSubTotal") 
+       __objAddData(oBrw,"nColSubTotal")
+       __objSendMsg(oBrw,"nColSubTotal",0)
+     ENDIF  
+
+     IF oBrw:nColSubTotal>0
+        oBrw:aArrayData:=ACLONE(oBrw:aData)
+        oBrw:Refresh(.F.)
+        oBrw:Gotop()
+        oBrw:nColSubTotal:=0
+        //ADEPURA(aData,{|a,n| "Sub-Total"$a[oBrw:nColSubTotal]})
+        RETURN .F.
+     ENDIF
+
+      __objAddData(oBrw,"nColSubTotal")
+      __objSendMsg(oBrw,"nColSubTotal",nCol)
+
    ENDIF
-
-   DEFAULT nCol:=oBrw:SelectedCol():nPos
-
-// ? oBrw:nColSel,nCol
-
-   oCol:=oBrw:aCols[nCol]
-
-   IF Empty(oBrw:aData)
-      oBrw:aData:=ACLONE(oBrw:aArrayData)
-   ENDIF
-
-   aData:=ACLONE(oBrw:aArrayData)
-
-   IF !__objHasMsg( oBrw, "aSubTotal") 
-     __objAddData(oBrw,"aSubTotal")
-     __objSendMsg(oBrw,"aSubTotal",{})
-   ENDIF
-
-   // busca sub-Total para removerlo
-   IF !__objHasMsg( oBrw, "nColSubTotal") 
-     __objAddData(oBrw,"nColSubTotal")
-     __objSendMsg(oBrw,"nColSubTotal",0)
-   ENDIF
-
-   // ? oBrw:nColSubTotal,"oBrw:nColSubTotal"
-
-   IF oBrw:nColSubTotal>0
-      oBrw:aArrayData:=ACLONE(oBrw:aData)
-      oBrw:Refresh(.F.)
-      oBrw:Gotop()
-      oBrw:nColSubTotal:=0
-      //ADEPURA(aData,{|a,n| "Sub-Total"$a[oBrw:nColSubTotal]})
-      RETURN .F.
-   ENDIF
-
-  
-
-   __objAddData(oBrw,"nColSubTotal")
-   __objSendMsg(oBrw,"nColSubTotal",nCol)
 
    aData:=ASORT(aData,,, { |x, y| x[nCol] < y[nCol] })
 
@@ -93,9 +91,15 @@ PROCE MAIN(oBrw,nCol,oMdiFrm)
       // AADD(aNew,ACLONE(aLine))
 
       FOR I=1 TO LEN(aLine)
-        IF ValType(aLine[I])="N" .AND. !Empty(oBrw:aCols[I]:cFooter)
+
+        IF ValType(oCol)="O" .AND. ValType(aLine[I])="N" .AND. !Empty(oBrw:aCols[I]:cFooter)
            aLine[I]:=aTotal[I]
         ENDIF
+
+        IF oCol=NIL .AND. ValType(aLine[I])="N" 
+           aLine[I]:=aTotal[I]
+        ENDIF
+
      NEXT I
 
      IF nColSub>0
@@ -107,13 +111,18 @@ PROCE MAIN(oBrw,nCol,oMdiFrm)
 
    ENDDO
 
-   oBrw:aArrayData:=ACLONE(aNew)
-   oBrw:nArrayAt  :=1
+   IF ValType(oCol)="O"
 
-   oBrw:Refresh(.F.)
+     oBrw:aArrayData:=ACLONE(aNew)
+     oBrw:nArrayAt  :=1
+     oBrw:Refresh(.F.)
+     oBrw:aSubTotal:=ACLONE(aSubT)
 
-   oBrw:aSubTotal:=ACLONE(aSubT)
-//   ViewArray(aSubT)
+   ELSE
+
+     aData:=ACLONE(aNew)
+
+   ENDIF
 
 RETURN aData
 // EOF
