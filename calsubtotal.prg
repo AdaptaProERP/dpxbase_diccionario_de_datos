@@ -12,8 +12,8 @@ PROCE MAIN(oBrw,nColSub)
   LOCAL nAt1,I,nRowSel:=oBrw:nArrayAt,nDesde:=0,nHasta:=0
   LOCAL aSubTotal:={},aTotal:={},aLine:={}
 
-  nDesde:=oBrw:nRowSel
-  nHasta:=oBrw:nRowSel
+  nDesde:=oBrw:nArrayAt
+  nHasta:=oBrw:nArrayAt
 
   WHILE nDesde>1 .AND. !"Sub-"$oBrw:aArrayData[nDesde,nColSub]
      nDesde--
@@ -45,5 +45,12 @@ PROCE MAIN(oBrw,nColSub)
 
   oBrw:nArrayAt:=nRowSel
 
-RETURN .T.
+  // Calcular totales en el footers
+  aSubTotal:={}
+  AEVAL(oBrw:aArrayData,{|a,n| IF("Sub-"$a[nColSub],AADD(aSubTotal,a),NIL)})
+  aTotal:=ATOTALES(aSubTotal)
 
+  EJECUTAR("BRWCALTOTALES",oBrw,.F.,aTotal)
+
+RETURN .T.
+// EOF
