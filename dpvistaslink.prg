@@ -1,9 +1,9 @@
 // Programa   : DPVISTASLINK
 // Fecha/Hora : 31/07/2004 21:36:44
-// Propósito  : Determinar en los demás Conceptos donde Actua
+// Propósito  : Determinar las demás vistas donde se encuentra en <CCODVISTA>
 // Creado Por : Juan Navas
 // Llamado por: DPVISTAS.LBX
-// Aplicación : Definiciones de Nómina
+// Aplicación : Diccionario de Datos
 // Tabla      : DPVISTAS
 
 #INCLUDE "DPXBASE.CH"
