@@ -15,14 +15,22 @@ PROCE MAIN(cDbOrg,cDbDes)
     LOCAL cComand:="",cBat:="RUN.BAT",cOut,oData,aDir,cNo:=""
     LOCAL cFileZip,aFiles,cLog,cSay,cCodEmp
     LOCAL cDir    :="DP"+oDp:cType+"V"+STRZERO(oDp:nVersion*10,2)
-//+"\"+"DP"+oDp:cType+"V"+STRZERO(oDp:nVersion*10,2)+".SQL"
     LOCAL cFileOrg:=lower(oDp:cBin+cDir+"\"+cDir+".SQL")
     LOCAL cFileDes,cFileView,cFile
-    LOCAL cMemo,nAt
-    LOCAL cFileLog:=oDp:cBin+"TEMP\MYSQL.LOG"
+    LOCAL cMemo:="",nAt
+    LOCAL cFileLog:=oDp:cBin+"TEMP\MYSQL_"+LSTR(SECONDS())+".LOG"
     LOCAL cFileMem:="MYSQL.MEM"
     LOCAL _MycPass:="",_MycLoging:="",cPass,cLogin,nT1,nAT,oDb,cBdChk
+    LOCAL aVistas :=ACLONE(oDp:aVistas)
 
+    ADEPURA(aVistas,{|a,n| LEFT(a[3],1)="."})
+
+
+// aVistas:=ADEPURA(aVistas,{|a,n| oDbC:FILE(a[2])})
+// ViewArray(aVistas)
+// ? cMemo
+// RETURN 
+// RETURN .T.
 
     REST FROM (cFileMem) ADDI
 
@@ -34,10 +42,42 @@ PROCE MAIN(cDbOrg,cDbDes)
     DEFAULT cDbDes:="SGEV60_TEST",;
             cDbOrg:="DP"+oDp:cType+"V"+STRZERO(oDp:nVersion*10,2)
 
-    cMemo   :=MEMOREAD(cFileOrg)
-    nAt     :=AT(cDbOrg,cMemo)
-    cMemo   :=STRTRAN(cMemo,cDbOrg,cDbDes)
-    cFileDes:="TEMP\"+cDbDes+".SQL"
+
+    AEVAL(aVistas,{|a,n| cMemo:=cMemo+IF(Empty(cMemo),""," ")+"--ignore-table="+cDbOrg+".view_"+lower(ALLTRIM(a[1]))})
+
+    ferase(cFileOrg)
+? cDbOrg,"DEBO GENERARLO NUEVAMENTE SOLO CON LA ESTRUCTURA",cFileOrg
+
+   cComand:="MYSQL\mysqldump -C --opt "+CRLF+;
+            " --add-drop-database  "+CRLF+;
+            " --single-transaction "+CRLF+;
+            " --skip-lock-tables   "+CRLF+;
+            " --lock-tables=false  "+CRLF+;
+            " --host="+oDp:cIp+" "  +CRLF+;
+            " --no-data "+CRLF+;
+            cMemo+;
+            " --port="+LSTR(oDp:nPort)+" "+CRLF+;
+            " --default-character-set=utf8 "+CRLF+;
+            " --max_allowed_packet=512M "+CRLF+;
+            "-B "+cDbOrg+;
+            " -e "+;
+            " -f "+;
+            IF(Empty(cPass),""," --password="+ALLTRIM(cPass))+;
+            " --user="+ALLTRIM(cLogin)+IIF(.F.," -t ","")+" -e > "+cFileOrg
+
+   cComand:=STRTRAN(cComand,CRLF,"") 
+   DPWRITE(cBat,cComand)
+ 
+   CursorWait()
+
+   MsgRun("Generando Script "+cFileOrg,"Por favor espere",{|| WaitRun(cBat,0)})
+
+RETURN .T.
+
+   cMemo   :=MEMOREAD(cFileOrg)
+   nAt     :=AT(cDbOrg,cMemo)
+   cMemo   :=STRTRAN(cMemo,cDbOrg,cDbDes)
+   cFileDes:="TEMP\"+cDbDes+".SQL"
 
     DPWRITE(cFileDes,cMemo)
 
