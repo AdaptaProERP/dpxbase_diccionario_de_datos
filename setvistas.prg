@@ -57,7 +57,7 @@ PROCE MAIN(cVisDSN,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay ,cDsn )
          cWhere:=cWhere+" AND LEFT(VIS_DSN,1)"+GetWhere("=",".")
       ENDIF
 
-? cWhere,"EN CREAR VISTAS"
+// ? cWhere,"EN CREAR VISTAS",cDsn,"<cDsn",oDp:cDsnData,"oDp:cDsnData"
 
       lTodos:=.T.
 
@@ -221,7 +221,7 @@ FUNCTION SETVISTAXBASE(cDsn,cVista,cSql,oServer,cNombre)
    NEXT I
 
  
-RETURN CREARVISTA(cVista,cSql,cCodPrg)
+RETURN CREARVISTA(cVista,cSql,cCodPrg,"1")
 
 
 /*
@@ -252,7 +252,7 @@ FUNCTION SETVISTAS2(cVistaName,cVista,oDb)
 
     NEXT I
 
-    CREARVISTA(cVista,cSql,cCodPrg)
+    CREARVISTA(cVista,cSql,cCodPrg,"2")
 
 RETURN .F.
 
@@ -283,7 +283,7 @@ FUNCTION SETVISTAS3(cCodigo,cVista,oDb)
 
     NEXT I
    
-RETURN CREARVISTA(cVista,cSql,cCodPrg)
+RETURN CREARVISTA(cVista,cSql,cCodPrg,"3")
 
 /*
 // Vista requiere Vista
@@ -308,7 +308,7 @@ FUNCTION SETVISTAS4(cCodigo,cVista,oDb)
 
     ENDIF
 
-    CREARVISTA(cVista,cSql,cCodPrg)
+    CREARVISTA(cVista,cSql,cCodPrg,"4")
 
 RETURN .F.
 
@@ -335,7 +335,7 @@ FUNCTION SETVISTAS5(cCodigo,cVista,oDb)
 
     ENDIF
 
-    CREARVISTA(cVista,cSql,cCodPrg)
+    CREARVISTA(cVista,cSql,cCodPrg,"5")
 
 RETURN .F.
 
@@ -361,7 +361,7 @@ FUNCTION SETVISTAS6(cCodigo,cVista,oDb)
 
     ENDIF
 
-    CREARVISTA(cVista,cSql,cCodPrg)
+    CREARVISTA(cVista,cSql,cCodPrg,"6")
 
 RETURN .F.
 
@@ -369,13 +369,17 @@ RETURN .F.
 /*
 // Realiza la Creación de la Vista
 */
-FUNCTION CREARVISTA(cVista,cSql,cCodPrg)
-    LOCAL cFile  :="TEMP\dpvista_"+ALLTRIM(cVista)+".sql"
+FUNCTION CREARVISTA(cVista,cSql,cCodPrg,cId)
+    LOCAL cFile  :="TEMP\dpvista_"+ALLTRIM(cVista)+"_"+cId+".sql"
     LOCAL cCodigo:=SUBS(cVista,6,LEN(cVista)),cError 
 
     IF Empty(cSql)
        MensajeErr("Vista "+cVistaName+" no tiene Sentencia SQL")
        RETURN .F.
+    ENDIF
+
+    IF !"VIEW_"$UPPER(cVista)
+       cVista:="VIEW_"+cVista
     ENDIF
 
     oDb:ExecSQL("DROP TABLE IF EXISTS "+cVista,.F.)
@@ -386,7 +390,7 @@ FUNCTION CREARVISTA(cVista,cSql,cCodPrg)
     cSql:=" CREATE OR REPLACE VIEW  "+cVista+" AS "+cSql
     cSql:=EJECUTAR("WHERE_VAR",cSql)
 
-    DPWRITE("TEMP\dpvistas_"+cVista+".SQL",cSql)
+    DPWRITE(cFile,cSql)
 
     IF !Empty(cCodPrg) .AND. oDp:lRunPrgView
       EJECUTAR(cCodPrg)
@@ -394,13 +398,15 @@ FUNCTION CREARVISTA(cVista,cSql,cCodPrg)
 
     IF !oDb:ExecSQL( cSql )
 
+       cFile  :="TEMP\dpvista_"+ALLTRIM(cVista)+"_"+cId+".err"
+
        cError:=oDb:oConnect:oError:GetError()
 
        DPWRITE(cFile,cSql+CRLF+cError)
+
        IF !Empty(cError)
           MensajeErr("MySQL no pudo ejecutar la sentencia "+CRLF+CLPCOPY(cSql+CRLF+cError)+CRLF+"LogFile "+cFile,cTitle)
        ENDIF
-
 
        EJECUTAR("SETVISTASFIX",cCodigo,cError)
 
