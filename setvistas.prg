@@ -10,14 +10,14 @@
 
 #include "dpxbase.ch"
 
-PROCE MAIN(cVisDSN,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay ,cDsn )
+PROCE MAIN(cDsn,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay)
    LOCAL oTable, cSql, cWhere:="",cTable
    LOCAL oServer := oDp:oMySQL
    LOCAL nMySql  :=VAL(oDp:cMySqlVersion)
    LOCAL lTodos  :=.F.
    LOCAL oMeter  :=oDp:oMeter
 
-   DEFAULT cVisDSN:="",cVisCodigo:="",cVista:="",lForze:=.f.,lBar:=.t.
+   DEFAULT cDsn:=oDp:cDsnData,cVisCodigo:="",cVista:="",lForze:=.f.,lBar:=.t.
 
    DEFAULT lSay:=.T.
 
@@ -57,9 +57,14 @@ PROCE MAIN(cVisDSN,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay ,cDsn )
          cWhere:=cWhere+" AND LEFT(VIS_DSN,1)"+GetWhere("=",".")
       ENDIF
 
-// ? cWhere,"EN CREAR VISTAS",cDsn,"<cDsn",oDp:cDsnData,"oDp:cDsnData"
+? cDsn,oDp:cDsnData
+
+
+      // ? cWhere,"EN CREAR VISTAS",cDsn,"<cDsn",oDp:cDsnData,"oDp:cDsnData"
 
       lTodos:=.T.
+      lForze:=.T. // Crea todas las vistas
+
 
    ENDIF
 
@@ -70,17 +75,25 @@ PROCE MAIN(cVisDSN,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay ,cDsn )
       oDp:lCreateView:=.T.
 
       If Empty(cVisCodigo) .AND. ;
-         !MsgYesNo("Implementar todas las Vistas?", "Implementando Vistas")
+         !MsgYesNo("Implementar todas las Vistas en BD "+cDsn+" ?", "Implementando Vistas")
          Return .f.
       EndIf
 
    EndIf
 
    IF !oDp:lCreateView 
-       RETURN .F.
-    ENDIF
+      RETURN .F.
+   ENDIF
 
    oTable:=OpenTable(cSql,.t.)
+
+   // 06/10/2023 El DSN, lo indica la VISTA
+   IF !Empty(cVisCodigo)
+      cDsn:=oTable:VIS_DSN
+      cDsn  :=IIF("<"$cDsn,oDp:cDsnData  ,cDsn)
+      cDsn  :=IIF("."$cDsn,oDp:cDsnConfig,cDsn)
+      cDsn  :=IIF("-"$cDsn,oDp:cDsnDicc  ,cDsn)
+   ENDIF
 
    IF oTable:RecCount()=0
       oTable:End()
@@ -111,7 +124,7 @@ PROCE MAIN(cVisDSN,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay ,cDsn )
    ENDIF
 
    
-   While !oTable:Eof()
+   WHILE !oTable:Eof()
 
       SysRefresh(.T.)
 
@@ -122,14 +135,14 @@ PROCE MAIN(cVisDSN,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay ,cDsn )
          // 14/09/2022 genera incidencia debido a que la vista no esta incluida en DPTABLAS
          // cDsn:=GetOdbc(cTable):cDsn
       ENDIF
-
+/*
       IF Empty(cDsn)
         cDsn  :=oTable:VIS_DSN
         cDsn  :=IIF("<"$cDsn,oDp:cDsnData  ,cDsn)
         cDsn  :=IIF("."$cDsn,oDp:cDsnConfig,cDsn)
         cDsn  :=IIF("-"$cDsn,oDp:cDsnDicc  ,cDsn)
       ENDIF
-
+*/
       IF lTodos
 
          IF ValType(oMeter)="O"
@@ -189,6 +202,8 @@ FUNCTION SETVISTAXBASE(cDsn,cVista,cSql,oServer,cNombre)
    LOCAL cCodigo   :=cVista
    LOCAL cFile    
 
+   oDb:=OPENODBC(cDsn)
+
    // no debe crear la vista, si ya existe, solo la elimina en el caso que el usuario lo solicite.
    IF !lForze .AND. oDb:FILE(cVistaName)
      // 04/10/2023 EJECUTAR("DBISTABLE",cDsn,cVistaName,.F.) .AND. !lForze
@@ -200,7 +215,7 @@ FUNCTION SETVISTAXBASE(cDsn,cVista,cSql,oServer,cNombre)
      aTablas:=EJECUTAR("SQL_ATABLES",cSql)
    ENDIF
 
-   oDb:=OPENODBC(cDsn)
+  
 
    FOR I=1 TO LEN(aTablas)
 
@@ -405,7 +420,7 @@ FUNCTION CREARVISTA(cVista,cSql,cCodPrg,cId)
        DPWRITE(cFile,cSql+CRLF+cError)
 
        IF !Empty(cError)
-          MensajeErr("MySQL no pudo ejecutar la sentencia "+CRLF+CLPCOPY(cSql+CRLF+cError)+CRLF+"LogFile "+cFile,cTitle)
+          MensajeErr("MySQL no pudo ejecutar la sentencia "+CRLF+CLPCOPY(cSql+CRLF+cError)+CRLF+"LogFile "+cFile,"Vista "+cVista+" no pudo ser Creada")
        ENDIF
 
        EJECUTAR("SETVISTASFIX",cCodigo,cError)
