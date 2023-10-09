@@ -9,16 +9,16 @@
 #INCLUDE "DPXBASE.CH"
 
 PROCE MAIN(cVista)
-  LOCAL cWhere:="",cSql,oTable,aTables,cTable,cDsn,cDsnVista,aVistas:={}
+  LOCAL cWhere:="",cSql,oTable,aTables,cTable,cDsn,cDsnVista,aVistas:={},nAt
 
   IF !Empty(cVista)
-     cWhere:=" WHERE VIS_VISTA"+GetWhere("=",cVista)+" AND VIS_DSN<>TAB_DSN"
+     cWhere:=" WHERE VIS_VISTA"+GetWhere("=",cVista)
   ELSE
      cWhere:=" WHERE VIS_DSN<>TAB_DSN"
   ENDIF
   
-  cSql  :="SELECT * FROM DPVISTAS LEFT JOIN DPTABLAS ON VIS_TABLE=TAB_NOMBRE AND VIS_DSN<>TAB_DSN "+cWhere
-   oTable:=OpenTable(cSql,.T.)
+  cSql  :="SELECT * FROM DPVISTAS LEFT JOIN DPTABLAS ON VIS_TABLE=TAB_NOMBRE "+cWhere
+  oTable:=OpenTable(cSql,.T.)
 
   WHILE !oTable:Eof()
 
@@ -31,10 +31,16 @@ PROCE MAIN(cVista)
         SysRefresh(.t.)
 
         aTables:=EJECUTAR("SQL_ATABLES",cSql)
-        cTable :=UPPER(aTables[1])
-       
+        nAt    :=ASCAN(aTables,{|a,n| !"VIEW_"$a})
+
+        IF nAt>0
+          cTable :=UPPER(aTables[nAt])
+        ELSE
+          cTable :=UPPER(aTables[1])
+        ENDIF
+     
         IF "VIEW_"$cTable
-           cVista   :=LEFT(cTable,6,LEN(cTable))
+           cVista   :=SUBS(cTable,6,LEN(cTable))
            cSql     :=SQLGET("DPVISTAS","VIS_DEFINE,VIS_DSN","VIS_VISTA"+GetWhere("=",cVista))
            cDsnVista:=DPSQLROW(2)
            LOOP
@@ -46,18 +52,17 @@ PROCE MAIN(cVista)
   
      cDsn:=SQLGET("DPTABLAS","TAB_DSN","TAB_NOMBRE"+GetWhere("=",cTable))
 
-     AADD(aVistas,{cTable,cDsn,cDsnVista})
+     AADD(aVistas,{cTable,cDsn,cDsnVista,oTable:VIS_VISTA})
 
-     SQLUPDATE("DPVISTAS","VIS_DSN",cDsn,"VIS_VISTA"+GetWhere("=",cVista))
-     // ViewArray(aTables)
-     //? cSql,cTable,cVista,cDsn,oDp:cSql
+     SQLUPDATE("DPVISTAS","VIS_DSN",cDsn,"VIS_VISTA"+GetWhere("=",oTable:VIS_VISTA))
+
      SysRefresh(.t.)
      oTable:DbSkip()
-     //EXIT
 
   ENDDO
 
-// ViewArray(aVistas)
+  SQLUPDATE("DPVISTAS","VIS_DSN",".CONFIGURACION","VIS_DSN"+GetWhere("=",oDp:cDsnConfig))
+  SQLUPDATE("DPVISTAS","VIS_DSN","<MULTIPLE"     ,"VIS_DSN"+GetWhere("=",oDp:cDsnData  ))
 
   oTable:End()
             

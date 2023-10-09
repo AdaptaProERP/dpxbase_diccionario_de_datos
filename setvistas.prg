@@ -158,12 +158,14 @@ PROCE MAIN(cDsn,cVisCodigo,cVista,lForze,lBar , oDlg ,lSay)
 
       IIF(ValType(oDlg)="O",oDlg:Say(1,0,oTable:VIS_VISTA),NIL)
 
-      IF !Empty(cTable) .AND. !("VIEW_"$cTable) .AND. !EJECUTAR("DBISTABLE",cDsn,cTable,.T.)
+      IF !Empty(cTable) .AND. !("VIEW_"$cTable) .AND. !oDb:FILE(cTable) 
+
+        // !EJECUTAR("DBISTABLE",cDsn,cTable,.F.)
 
         Checktable(cTable)
 
         IF !EJECUTAR("DBISTABLE",cDsn,cTable,.T.)
-          MensajeErr("Tabla "+cTable+" no Existe, no es posible Crear la Vista "+oTable:VIS_VISTA)
+          MensajeErr("Tabla "+cTable+" no Existe en BD "+cDsn+", no es posible Crear la Vista "+oTable:VIS_VISTA)
         ENDIF
 
       ELSE
@@ -215,15 +217,13 @@ FUNCTION SETVISTAXBASE(cDsn,cVista,cSql,oServer,cNombre)
      aTablas:=EJECUTAR("SQL_ATABLES",cSql)
    ENDIF
 
-  
-
    FOR I=1 TO LEN(aTablas)
 
       aTablas[I]:=UPPER(aTablas[I])
 
       IF "VIEW_"$UPPER(aTablas[I])
 
-        SETVISTAS2(aTablas[I],aTablas[I],oDb)
+        SETVISTAS2(aTablas[I],aTablas[I])
 
       ELSE
 
@@ -242,7 +242,7 @@ RETURN CREARVISTA(cVista,cSql,cCodPrg,"1")
 /*
 // Vista requiere Vista
 */
-FUNCTION SETVISTAS2(cVistaName,cVista,oDb)
+FUNCTION SETVISTAS2(cVistaName,cVista)
     LOCAL cCodigo   :=STRTRAN(UPPER(cVistaName),"VIEW_","")
     LOCAL cSql      :=SQLGET("DPVISTAS","VIS_DEFINE,VIS_PRGPRE","VIS_VISTA"+GetWhere("=",cCodigo))
     LOCAL cCodPrg   :=DPSQLROW(2,"")
@@ -255,7 +255,7 @@ FUNCTION SETVISTAS2(cVistaName,cVista,oDb)
 
       IF "VIEW_"$aTablas[I]
 
-        SETVISTAS3(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I],oDb)
+        SETVISTAS3(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I])
 
       ELSE
 
@@ -275,7 +275,7 @@ RETURN .F.
 // Vista requiere Vista
 // PD, se podra crear la recursividad de una función mediante la multi-instancia 
 */
-FUNCTION SETVISTAS3(cCodigo,cVista,oDb)
+FUNCTION SETVISTAS3(cCodigo,cVista)
     LOCAL cSql   :=SQLGET("DPVISTAS","VIS_DEFINE,VIS_PRGPRE","VIS_VISTA"+GetWhere("=",cCodigo))
     LOCAL cCodPrg:=DPSQLROW(2,"")
     LOCAL aTablas:=EJECUTAR("SQL_ATABLES",cSql),I,cError
@@ -285,7 +285,7 @@ FUNCTION SETVISTAS3(cCodigo,cVista,oDb)
 
       IF "VIEW_"$aTablas[I]
 
-         SETVISTAS4(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I],oDb)
+         SETVISTAS4(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I])
 
       ELSE
 
@@ -304,7 +304,7 @@ RETURN CREARVISTA(cVista,cSql,cCodPrg,"3")
 // Vista requiere Vista
 // PD, se podra crear la recursividad de una función mediante la multi-instancia 
 */
-FUNCTION SETVISTAS4(cCodigo,cVista,oDb)
+FUNCTION SETVISTAS4(cCodigo,cVista)
     LOCAL cSql   :=SQLGET("DPVISTAS","VIS_DEFINE,VIS_PRGPRE","VIS_VISTA"+GetWhere("=",cCodigo))
     LOCAL cCodPrg:=DPSQLROW(2,"")
     LOCAL aTablas:=EJECUTAR("SQL_ATABLES",cSql),I,cError
@@ -312,7 +312,7 @@ FUNCTION SETVISTAS4(cCodigo,cVista,oDb)
 
      IF "VIEW_"$aTablas[I]
 
-        SETVISTAS5(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I],oDb)
+        SETVISTAS5(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I])
 
       ELSE
 
@@ -331,7 +331,7 @@ RETURN .F.
 /*
 // 6TO NIVEL DE RECURSIVIDAD
 */
-FUNCTION SETVISTAS5(cCodigo,cVista,oDb)
+FUNCTION SETVISTAS5(cCodigo,cVista)
     LOCAL cSql   :=SQLGET("DPVISTAS","VIS_DEFINE,VIS_PRGPRE","VIS_VISTA"+GetWhere("=",cCodigo))
     LOCAL cCodPrg:=DPSQLROW(2,"")
     LOCAL aTablas:=EJECUTAR("SQL_ATABLES",cSql),I,cError
@@ -339,7 +339,7 @@ FUNCTION SETVISTAS5(cCodigo,cVista,oDb)
 
      IF "VIEW_"$aTablas[I]
 
-        SETVISTAS6(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I],oDb)
+        SETVISTAS6(SUBS(aTablas[I],6,LEN(aTablas[I])),aTablas[I])
 
       ELSE
 
@@ -357,7 +357,7 @@ RETURN .F.
 /*
 // 6TO NIVEL DE RECURSIVIDAD
 */
-FUNCTION SETVISTAS6(cCodigo,cVista,oDb)
+FUNCTION SETVISTAS6(cCodigo,cVista)
     LOCAL cSql   :=SQLGET("DPVISTAS","VIS_DEFINE,VIS_PRGPRE","VIS_VISTA"+GetWhere("=",cCodigo))
     LOCAL cCodPrg:=DPSQLROW(2,"")
     LOCAL aTablas:=EJECUTAR("SQL_ATABLES",cSql),I,cError
@@ -432,5 +432,4 @@ FUNCTION CREARVISTA(cVista,cSql,cCodPrg,cId)
     SysRefresh(.T.)
 
 RETURN .T.
-
 //EOF

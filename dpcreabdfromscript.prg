@@ -1,7 +1,7 @@
 // Programa   : DPCREABDFROMSCRIPT
 // Fecha/Hora : 07/07/2023 23:43:00
 // Propósito  : Crear Base de Datos desde DPSGEV60\DPSGEV60.SQL 
-//              Sino está es generador desde mysqldump.exe solo estructura de datos
+//              refrescará mysqldump.exe solo estructura de datos + Vistas anexadas desde aqui.
 // Creado Por : Juan Navas
 // Llamado por:
 // Aplicación :
@@ -21,8 +21,8 @@ PROCE MAIN(cDbOrg,cDbDes)
     LOCAL cFileLog:=oDp:cBin+"TEMP\MYSQL_"+LSTR(SECONDS())+".LOG"
     LOCAL cFileMem:="MYSQL.MEM"
     LOCAL _MycPass:="",_MycLoging:="",cPass,cLogin,nT1,nAT,oDb,cBdChk
-    LOCAL aVistas :=ACLONE(oDp:aVistas),cVistas:="",cRelease:=""
-
+    LOCAL aVistas :=ACLONE(oDp:aVistas),cVistas:="",cRelease:="",cFileTmp:=""
+    
     ADEPURA(aVistas,{|a,n| LEFT(a[3],1)="."})
 
     REST FROM (cFileMem) ADDI
@@ -34,7 +34,12 @@ PROCE MAIN(cDbOrg,cDbDes)
             cDbOrg:="DP"+oDp:cType+"V"+STRZERO(oDp:nVersion*10,2)
 
 
+    cFileTmp:=cFileNoExt(cFileOrg)+"_"+LSTR(SECONDS())+".SQL"
+
+
+    // 03/10/2023 genera incidencia por //mysqldump: unknown variable 'ignre-table=DPSGEV60.view_dplibinvdet_mes'
     AEVAL(aVistas,{|a,n| cMemo:=cMemo+IF(Empty(cMemo),""," ")+"--ignore-table="+cDbOrg+".view_"+lower(ALLTRIM(a[1]))})
+    cMemo:=STRTRAN(cMemo,"ignre-table","ignore-table")
 
     ferase(cFileOrg)
 
@@ -53,17 +58,29 @@ PROCE MAIN(cDbOrg,cDbDes)
              " -e "+;
              " -f "+;
              IF(Empty(cPass),""," --password="+ALLTRIM(cPass))+;
-             " --user="+ALLTRIM(cLogin)+IIF(.F.," -t ","")+" -e > "+cFileOrg
+             " --user="+ALLTRIM(cLogin)+IIF(.F.," -t ","")+" -e > "+cFileTmp // cFileOrg
 
    cComand:=STRTRAN(cComand,CRLF,"") 
    DPWRITE(cBat,cComand)
+
+   COPY FILE (cBat) TO ("RUNMYSQLDUMP.BAT")
  
    CursorWait()
 
    MsgRun("Generando Script "+cFileOrg,"Por favor espere",{|| WaitRun(cBat,0)})
 
-   cMemo:=MemoRead(cFileOrg)
+   // ? FSIZE(cFileTmp),FILE(cFileTmp),cFileOrg
+
+   IF FSIZE(cFileTmp)=0
+      MsgMemo("No fué posible Crear el SCRIPT  "+cFileTmp)
+   ENDIF
+
+   // quitar CREATE BASE
+   // nAt  :=AT("VIEW_",cMemo)
+
+   cMemo:=MemoRead(cFileTmp)
    nAt  :=AT("VIEW_",cMemo)
+
    IF nAt=0
       nAt  :=AT("view_",cMemo)
    ENDIF
@@ -75,6 +92,17 @@ PROCE MAIN(cDbOrg,cDbDes)
 
    IF AT(cDbOrg,cMemo)>0
       cMemo:=STRTRAN(cMemo,cDbOrg,cDbDes)
+      cMemo:=STRTRAN(cMemo,LOWER(cDbOrg),cDbDes)
+   ENDIF
+
+   /*
+   // QUITAR CREATE BD
+   */
+   nAt  :=AT("USE ",cMemo)
+
+   IF nAt>0
+      cMemo:=SUBS(cMemo,nAt,LEN(cMemo))
+      cMemo:=[SET FOREIGN_KEY_CHECKS=0 ;]+CRLF+cMemo
    ENDIF
 
    /*
@@ -85,6 +113,10 @@ PROCE MAIN(cDbOrg,cDbDes)
 
    ADEPURA(aVistas,{|a,n| !"VIEW_"$UPPE(a)})
 
+   EVAL(aVistas,{|a,n| aVistas[I]:=UPPER(aVistas[I]),;
+                       aVistas[I]:=STRTRAN(aVistas[I],"VIEW_","")})
+
+/*
    AEVAL(aVistas,{|a,I,cSql,nAt| cSql:=oDb:QueryRow("SHOW CREATE VIEW "+aVistas[I],aVistas[I])[2],;
                                  nAt :=AT(" AS ",UPPE(cSql))     ,;
                                  cSql:=SUBS(cSql,nAt+3,LEN(cSql)),;
@@ -96,8 +128,14 @@ PROCE MAIN(cDbOrg,cDbDes)
                                  cSql:=STRTRAN(cSql," ORDER BY ",CRLF+" ORDER BY "),;
                                  cSql:=" CREATE OR REPLACE VIEW  "+aVistas[I]+" AS "+CRLF+cSql+CRLF,;
                                  cVistas:=cVistas+IF(Empty(cVistas),"",CRLF)+cSql })
-
-   // Agregamos las Vistas
+*/
+   AEVAL(aVistas,{|a,I,cSql,nAt| cSql:=SQLGET("DPVISTAS","VIS_DEFINE","VIS_VISTA"+GetWhere("=",aVistas[I])),;
+                                 cSql:=STRTRAN(cSql," FROM"," FROM "+CRLF),;
+                                 cSql:=STRTRAN(cSql," INNER ",CRLF+" INNER "),;
+                                 cSql:=STRTRAN(cSql," GROUP BY ",CRLF+" GROUP BY "),;
+                                 cSql:=STRTRAN(cSql," ORDER BY ",CRLF+" ORDER BY "),;
+                                 cSql:=" CREATE OR REPLACE VIEW  "+aVistas[I]+" AS "+CRLF+cSql+CRLF,;
+                                 cVistas:=cVistas+IF(Empty(cVistas),"",CRLF)+cSql })
 
    cMemo:=cMemo+CRLF+cVistas
 
@@ -112,14 +150,16 @@ PROCE MAIN(cDbOrg,cDbDes)
 
    cFileLog:=oDp:cBin+"TEMP\MYSQL_"+cDbDes+".LOG"
 
-   // D:\SYSTEMDB\1206\MariaDb1011\bin\mysql alprogeneirl < D:\PRGS\SIAE\BIN\alprogen.sql -u root -pqazwsxedc
-   // https://fivetechsupport.com/forums/viewtopic.php?f=6&t=43740&p=264063&sid=76f8be83ba04affab1aa7a643b96a306#p264063
-
    IF !FILE(cFileOrg)
 
       MsgMemo("No Existe "+cFileOrg)
 
     ELSE
+
+      IF !FILE(oDp:cBin+"mysql\mysql.exe ")
+         MsgMemo("Requiere Programa "+oDp:cBin+"mysql\mysql.exe "+CRLF+"La BD "+cDbDes+CRLF+;
+                 " será creada mediante el Diccionario de Datos","mysql.exe No Encontrado")
+      ENDIF
 
       cComand:=oDp:cBin+"mysql\mysql.exe "+;
                cDbDes+;
@@ -168,6 +208,7 @@ PROCE MAIN(cDbOrg,cDbDes)
    EJECUTAR("ADDCLONE",cDbOrg,cDbDes) // evita revisar el release
 
    cBdChk  :=SQLGET("DPEMPRESA","EMP_FCHCHK,EMP_TABUPD","EMP_BD"+GetWhere("=",cDbOrg))
+   cRelease:=DPSQLROW(2)
    SQLUPDATE("DPEMPRESA",{"EMP_FCHCHK","EMP_TABUPD"},{cBdChk,cRelease},"EMP_BD"+GetWhere("=",cDbDes))
 
    // SQLDELETE("DPEMPRESA","EMP_TABUPD",oDp:cBdRelease,"EMP_BD"+GetWhere("=",cDbDes))
