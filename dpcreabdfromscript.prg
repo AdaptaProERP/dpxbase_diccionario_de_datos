@@ -119,8 +119,8 @@ PROCE MAIN(cDbOrg,cDbDes)
    // Agregar las Vistas en el Script 
    cVistas:=""
    IF lViewJoin
-     cFileView:=EJECUTAR("DPCREAVIEWFROMSCRIPT",cDbOrg)
-     cVistas  :=MemoRead(cFileView)
+     // cFileView:=EJECUTAR("DPCREAVIEWFROMSCRIPT",cDbOrg)
+     // cVistas  :=MemoRead(cFileView)
    ENDIF
 
    // Vista Agregada la creación de las Tablas
@@ -170,12 +170,22 @@ PROCE MAIN(cDbOrg,cDbDes)
       MsgMemo(cMemo,"Incidencia en la Creación de la Base de Datos"+cDbDes)
     ENDIF
 
+    IF !lViewJoin
+       SysRefresh(.T.)
+       EJECUTAR("DPCREAVIEWFROMSCRIPT",cDbOrg,cDbDes,.T.)
+    ENDIF
+
+
     EJECUTAR("ADDCLONE",cDbOrg,cDbDes) // evita revisar el release
 
     cBdChk  :=SQLGET("DPEMPRESA","EMP_FCHCHK,EMP_TABUPD","EMP_BD"+GetWhere("=",cDbOrg))
     cRelease:=DPSQLROW(2)
     SQLUPDATE("DPEMPRESA",{"EMP_FCHCHK","EMP_TABUPD"},{cBdChk,cRelease},"EMP_BD"+GetWhere("=",cDbDes))
 
+    // oDb:=OpenOdbc(cDbDes)
+    // ViewArray(oDb:GetTables())
+    // oDb:Close()
+    // ? "REVISAR LAS VISTAS"
     // SQLDELETE("DPEMPRESA","EMP_TABUPD",oDp:cBdRelease,"EMP_BD"+GetWhere("=",cDbDes))
 
 RETURN .T.

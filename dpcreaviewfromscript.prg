@@ -25,12 +25,17 @@ PROCE MAIN(cDbOrg,cDbDes,lRun)
   // Generar sentencia de las Vistas
   */
   oDb    :=OpenOdbc(cDbOrg)
+
+  aVistas:={}
+  AEVAL(oDp:aVistas,{|a,n| IF(LEFT(a[3],1)="<",AADD(aVistas,a[1]),NIL)})
+
+/*
   aVistas:=ACLONE(oDb:aTables)
-
   ADEPURA(aVistas,{|a,n| !"VIEW_"$UPPE(a)})
-
   AEVAL(aVistas,{|a,n| aVistas[n]:=UPPER(aVistas[n]),;
                         aVistas[n]:=STRTRAN(aVistas[n],"VIEW_","")})
+*/
+
   // Vistas con vistas concatenadas
   aVistas:=ASQL([ SELECT CONCAT("VIEW_",VIS_VISTA) AS VIS_VISTA,VIS_DEFINE FROM DPVISTAS WHERE ]+GetWhereOr("VIS_VISTA",aVistas)+;
                 [ AND VIS_DEFINE LIKE "%VIEW_%"] )
@@ -84,12 +89,18 @@ PROCE MAIN(cDbOrg,cDbDes,lRun)
   /*
   // VISTAS QUE GENERAN LAS VISTAS CONCATENADAS
   */
+
+/*
   aNew:=ACLONE(oDb:aTables)
 
   ADEPURA(aNew,{|a,n| !"VIEW_"$UPPE(a)})
 
   AEVAL(aNew,{|a,n| aNew[n]:=UPPER(aNew[n]),;
                     aNew[n]:=STRTRAN(aNew[n],"VIEW_","")})
+*/
+
+  aNew:={}
+  AEVAL(oDp:aVistas,{|a,n| IF(LEFT(a[3],1)="<",AADD(aNew,a[1]),NIL)})
 
   /*
   // Vistas sin Vistas Concatenas son creadas inicialmente para luego crear las vistas con vistas concatenadas
@@ -114,13 +125,18 @@ PROCE MAIN(cDbOrg,cDbDes,lRun)
     cSql:=STRTRAN(cSql," ORDER BY ",CRLF+" ORDER BY ")
     cSql:=EJECUTAR("WHERE_VAR",cSql)
 
-    cSql:=" CREATE OR REPLACE VIEW  "+aVistas[I,1]+" AS "+CRLF+cSql+";"+CRLF+CRLF
+    cSql:=" CREATE OR REPLACE VIEW  "+ALLTRIM(aVistas[I,1])+" AS "+CRLF+cSql+";"+CRLF+CRLF
 
     aVistas[I,2]:=cSql
 
     cVista:=cVista+cSql
 
   NEXT I
+
+  IF !Empty(cDbDes)
+     cVista:=" USE "+cDbDes+";"+CRLF+cVista
+// ? cDbDes,LEFT(cVista,1024)
+  ENDIF
 
   // Primera Vistas sobre las vistas
   cFileView:=STRTRAN(cFileOrg,".","_VIEW.")
@@ -137,30 +153,26 @@ PROCE MAIN(cDbOrg,cDbDes,lRun)
 
      cComand:=oDp:cBin+"mysql\mysql.exe "+;
               cDbDes+;
-              " < "+cFileOrg+""+;
+              " < "+cFileView+""+;
               " -u"+ALLTRIM(cLogin)+" "+;
               IF(Empty(cPass),"","-p"+ALLTRIM(cPass ))+" "+;
               " --host="+oDp:cIp+" "+;
               " --port="+LSTR(oDp:nPort)+;
               " > "+cFileLog
-
-    
-? cComand
-
+   
     dpwrite(cBat,cComand)
 
     CursorWait()
 
-    MsgRun("Ejecutando Script "+cFileOrg,"Creando Base de Datos "+cDbDes+" tardará varios minutos",{|| WaitRun(cBat,0)})
+    MsgRun("Ejecutando Script "+cFileView,"Creando Vistas en la Base de Datos "+cDbDes+" tardará varios minutos",{|| WaitRun(cBat,0)})
 
     cMemo:=Memoread(cFileLog)
 
     IF "ERROR"$cMemo
-      MsgMemo(cMemo,"Incidencia en la Creación de la Base de Datos"+cDbDes)
+      MsgMemo(cMemo,"Incidencia en la Creación de las Vistas en la  Base de Datos"+cDbDes)
     ENDIF
 
   ENDIF
-
 
 RETURN cFileView
 //
