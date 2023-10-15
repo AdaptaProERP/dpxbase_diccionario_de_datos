@@ -1,0 +1,887 @@
+// Programa   : <CODIGO>
+// Fecha/Hora : <FECHA> <HORA>
+// Propósito  : <TITULO>
+// Creado Por : Automáticamente por BRWMAKER
+// Llamado por: <DPXBASE>
+// Aplicación : Gerencia
+// Tabla      : <TABLA>
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(cWhere,cCodSuc,nPeriodo,dDesde,dHasta,cTitle)
+   LOCAL aData,aFechas,cFileMem:="USER\<CODIGO>.MEM",V_nPeriodo:=<PERIODO>,cCodPar
+   LOCAL V_dDesde:=CTOD(""),V_dHasta:=CTOD("")
+   LOCAL cServer:=oDp:cRunServer
+   LOCAL lConectar:=.F.
+
+   oDp:cRunServer:=NIL
+
+   IF Type("<oFrm>")="O" .AND. <oFrm>:oWnd:hWnd>0
+      RETURN EJECUTAR("BRRUNNEW",<oFrm>,GetScript())
+   ENDIF
+
+
+   IF !Empty(cServer)
+
+     MsgRun("Conectando con Servidor "+cServer+" ["+ALLTRIM(SQLGET("DPSERVERBD","SBD_DOMINI","SBD_CODIGO"+GetWhere("=",cServer)))+"]",;
+            "Por Favor Espere",{||lConectar:=EJECUTAR("DPSERVERDBOPEN",cServer)})
+
+     IF !lConectar
+        RETURN .F.
+             ENDIF
+
+   ENDIF
+
+
+   cTitle:=<TITULO> +IF(Empty(cTitle),"",cTitle)
+
+   oDp:oFrm:=NIL
+
+   IF FILE(cFileMem) .AND. nPeriodo=NIL
+      RESTORE FROM (cFileMem) ADDI
+      nPeriodo:=V_nPeriodo
+   ENDIF
+
+   DEFAULT cCodSuc :=oDp:cSucursal,;
+           nPeriodo:=4,;
+           dDesde  :=CTOD(""),;
+           dHasta  :=CTOD("")
+
+
+   // Obtiene el Código del Parámetro
+
+   IF !Empty(cWhere)
+
+      cCodPar:=ATAIL(_VECTOR(cWhere,"="))
+
+      IF TYPE(cCodPar)="C"
+        cCodPar:=SUBS(cCodPar,2,LEN(cCodPar))
+        cCodPar:=LEFT(cCodPar,LEN(cCodPar)-1)
+      ENDIF
+
+   ENDIF
+
+   IF <LHASTA> .AND. (!nPeriodo=11 .AND. (Empty(dDesde) .OR. Empty(dhasta)))
+
+       aFechas:=EJECUTAR("DPDIARIOGET",nPeriodo)
+       dDesde :=aFechas[1]
+       dHasta :=aFechas[2]
+
+   ENDIF
+
+   IF <LDESDEHASTA>
+
+      IF nPeriodo=10
+        dDesde :=V_dDesde
+        dHasta :=V_dHasta
+      ELSE
+        aFechas:=EJECUTAR("DPDIARIOGET",nPeriodo)
+        dDesde :=aFechas[1]
+        dHasta :=aFechas[2]
+      ENDIF
+
+     aData :=LEERDATA(HACERWHERE(dDesde,dHasta,cWhere),NIL,cServer,NIL)
+
+
+   ELSEIF (<LHASTA>)
+
+     aData :=LEERDATA(HACERWHERE(dDesde,dHasta,cWhere),NIL,cServer,NIL)
+
+   ENDIF
+
+   IF Empty(aData)
+      MensajeErr("no hay "+cTitle,"Información no Encontrada")
+      RETURN .F.
+   ENDIF
+
+   ViewData(aData,cTitle,oDp:cWhere)
+
+   oDp:oFrm:=<oFrm>
+
+RETURN .T.
+
+
+FUNCTION ViewData(aData,cTitle,cWhere_)
+   LOCAL oBrw,oCol,aTotal:=ATOTALES(aData)
+   LOCAL oFont,oFontB
+   LOCAL aPeriodos:=ACLONE(oDp:aPeriodos)
+   LOCAL aCoors:=GetCoors( GetDesktopWindow() )
+
+   DEFINE FONT oFont  NAME "Tahoma"   SIZE 0, -12
+   DEFINE FONT oFontB NAME "Tahoma"   SIZE 0, -12 BOLD
+
+<TFRM_INI>
+   DPEDIT():New(cTitle,"<CODIGO>.EDT","<oFrm>",.F.)
+   <oFrm>:CreateWindow(NIL,NIL,NIL,550,<ANCHO>+58)
+<TFRM_END>
+
+<TMDI_INI>
+   DpMdi(cTitle,"<oFrm>","<CODIGO>.EDT")
+// <oFrm>:CreateWindow(0,0,100,550)
+   <oFrm>:Windows(0,0,aCoors[3]-160,MIN(<ANCHO>,aCoors[4]-10),.T.) // Maximizado
+
+<TMDI_END>
+
+   <oFrm>:cCodSuc  :=cCodSuc
+   <oFrm>:lMsgBar  :=.F.
+   <oFrm>:cPeriodo :=aPeriodos[nPeriodo]
+   <oFrm>:cCodSuc  :=cCodSuc
+   <oFrm>:nPeriodo :=nPeriodo
+   <oFrm>:cNombre  :=""
+   <oFrm>:dDesde   :=dDesde
+   <oFrm>:cServer  :=cServer
+   <oFrm>:dHasta   :=dHasta
+   <oFrm>:cWhere   :=cWhere
+   <oFrm>:cWhere_  :=cWhere_
+   <oFrm>:cWhereQry:=""
+   <oFrm>:cSql     :=oDp:cSql
+   <oFrm>:oWhere   :=TWHERE():New(<oFrm>)
+   <oFrm>:cCodPar  :=cCodPar // Código del Parámetro
+   <oFrm>:lWhen    :=.T.
+   <oFrm>:cTextTit :="" // Texto del Titulo Heredado
+   <oFrm>:oDb      :=oDp:oDb
+   <oFrm>:cBrwCod  :="<BRWCOD>"
+   <oFrm>:lTmdi    :=<TMDI>
+   <oFrm>:aHead    :={}
+   <oFrm>:lBarDef  :=.T. // Activar Modo Diseño.
+
+   // Guarda los parámetros del Browse cuando cierra la ventana
+   <oFrm>:bValid   :={|| EJECUTAR("BRWSAVEPAR",<oFrm>)}
+
+   <oFrm>:lBtnRun     :=.F.
+   <oFrm>:lBtnMenuBrw :=.F.
+   <oFrm>:lBtnSave    :=.F.
+   <oFrm>:lBtnCrystal :=.F.
+   <oFrm>:lBtnRefresh :=.F.
+   <oFrm>:lBtnHtml    :=.T.
+   <oFrm>:lBtnExcel   :=.T.
+   <oFrm>:lBtnPreview :=.T.
+   <oFrm>:lBtnQuery   :=.F.
+   <oFrm>:lBtnOptions :=.T.
+   <oFrm>:lBtnPageDown:=.T.
+   <oFrm>:lBtnPageUp  :=.T.
+   <oFrm>:lBtnFilters :=.T.
+   <oFrm>:lBtnFind    :=.T.
+   <oFrm>:lBtnColor   :=.T.
+
+   <oFrm>:nClrPane1:=<NCLRPANE1>
+   <oFrm>:nClrPane2:=<NCLRPANE2>
+
+   <oFrm>:nClrText :=<NCLRTEXT>
+   <oFrm>:nClrText1:=<NCLRTEXT>
+   <oFrm>:nClrText2:=<NCLRTEXT>
+   <oFrm>:nClrText3:=<NCLRTEXT>
+
+
+<TIENEFECHA_INI>
+   IF !Empty("<CAMPOFECHA>")
+      <oFrm>:lWhen:=!("<CAMPOFECHA>"$cWhere)
+   ENDIF
+<TIENEFECHA_FIN>
+
+   <oFrm>:oBrw:=TXBrowse():New( IF(<oFrm>:lTmdi,<oFrm>:oWnd,<oFrm>:oDlg ))
+   <oFrm>:oBrw:SetArray( aData, <SORT> )
+   <oFrm>:oBrw:SetFont(oFont)
+
+   <oFrm>:oBrw:lFooter     := <LFOOTER>
+   <oFrm>:oBrw:lHScroll    := <LHSCROLL>
+   <oFrm>:oBrw:nHeaderLines:= <NHEADERLINES>
+   <oFrm>:oBrw:nDataLines  := <NDATALINES>
+   <oFrm>:oBrw:nFooterLines:= <NFOOTERLINES>
+
+<MULTISELECT_INI>
+   <oFrm>:oBrw:nMarqueeStyle := MARQSTYLE_HIGHLROWMS
+<MULTISELECT_END>
+
+
+   <oFrm>:aData            :=ACLONE(aData)
+
+   AEVAL(<oFrm>:oBrw:aCols,{|oCol|oCol:oHeaderFont:=oFontB})
+
+   <COLUMNAS>
+
+   <oFrm>:oBrw:aCols[1]:cFooter:=" #"+LSTR(LEN(aData))
+
+   <oFrm>:oBrw:bClrStd  := {|oBrw,nClrText,aLine|oBrw:=<oFrm>:oBrw,aLine:=oBrw:aArrayData[oBrw:nArrayAt],;
+                                                 nClrText:=<oFrm>:nClrText,;
+                                                 nClrText:=IF(.F.,<oFrm>:nClrText1,nClrText),;
+                                                 nClrText:=IF(.F.,<oFrm>:nClrText2,nClrText),;
+                                                 {nClrText,iif( oBrw:nArrayAt%2=0, <oFrm>:nClrPane1, <oFrm>:nClrPane2 ) } }
+
+//   <oFrm>:oBrw:bClrHeader            := {|| {0,14671839 }}
+//   <oFrm>:oBrw:bClrFooter            := {|| {0,14671839 }}
+
+   <oFrm>:oBrw:bClrHeader          := {|| { oDp:nLbxClrHeaderText, oDp:nLbxClrHeaderPane}}
+   <oFrm>:oBrw:bClrFooter          := {|| { oDp:nLbxClrHeaderText, oDp:nLbxClrHeaderPane}}
+
+   <oFrm>:oBrw:bLDblClick:={|oBrw|<oFrm>:RUNCLICK() }
+
+   <oFrm>:oBrw:bChange:={||<oFrm>:BRWCHANGE()}
+   <oFrm>:oBrw:CreateFromCode()
+
+<TMDI_CLI_INI>
+   <oFrm>:oWnd:oClient := <oFrm>:oBrw
+<TMDI_CLI_END>
+
+
+   <oFrm>:Activate({||<oFrm>:ViewDatBar()})
+
+   <oFrm>:BRWRESTOREPAR()
+
+RETURN .T.
+
+/*
+// Barra de Botones
+*/
+FUNCTION ViewDatBar()
+   LOCAL oCursor,oBar,oBtn,oFont,oCol
+   LOCAL oDlg:=IF(<oFrm>:lTmdi,<oFrm>:oWnd,<oFrm>:oDlg)
+   LOCAL nLin:=2,nCol:=0
+   LOCAL nWidth:=<oFrm>:oBrw:nWidth()
+
+   <oFrm>:oBrw:GoBottom(.T.)
+   <oFrm>:oBrw:Refresh(.T.)
+
+   IF !File("FORMS\<CODIGO>.EDT")
+     <oFrm>:oBrw:Move(44,0,<ANCHO>+50,460)
+   ENDIF
+
+   DEFINE CURSOR oCursor HAND
+
+   IF oDp:lBtnText
+     DEFINE BUTTONBAR oBar SIZE oDp:nBtnWidth,oDp:nBarnHeight+6 OF oDlg 3D CURSOR oCursor
+   ELSE
+     DEFINE BUTTONBAR oBar SIZE 52-15,60-15 OF oDlg 3D CURSOR oCursor
+   ENDIF
+
+   DEFINE FONT oFont  NAME "Tahoma"   SIZE 0, -10 BOLD
+
+   <oFrm>:oFontBtn   :=oFont     // MDI:GOTFOCUS()
+   <oFrm>:nClrPaneBar:=oDp:nGris // MDI:GOTFOCUS() Repintar
+
+<EMANAGER_INI>
+
+   nWidth:=0
+
+   EJECUTAR("EMADDBOTBAR",oBar,<oFrm>,"<BRWCOD>")
+
+
+<EMANAGER_END>
+
+
+<EMANAGER_INI_0> // Emanager no Incluye consulta de Vinculos
+
+
+   IF <LVINCULOS> .AND. Empty(<oFrm>:cServer)
+
+     DEFINE BUTTON oBtn;
+            OF oBar;
+            NOBORDER;
+            FONT oFont;
+            FILENAME "BITMAPS\VIEW.BMP";
+            TOP PROMPT "Consulta";
+            ACTION EJECUTAR("BRWRUNLINK",<oFrm>:oBrw,<oFrm>:cSql)
+
+     oBtn:cToolTip:="Consultar Vinculos"
+
+
+   ENDIF
+
+<MAIL_INI>
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\EMAIL.BMP";
+          TOP PROMPT "Correo";
+          ACTION <oFrm>:GENMAIL()
+
+   oBtn:cToolTip:="Generar Correspondencia Masiva"
+
+<MAIL_END>
+
+
+<EMANAGER_END_0>
+
+
+/*
+   IF Empty(<oFrm>:cServer) .AND. !Empty(SQLGET("DPBRWLNK","EBR_CODIGO","EBR_CODIGO"+GetWhere("=","<CODBRW>")))
+*/
+
+   IF ISSQLFIND("DPBRWLNKCONCAT","BRC_CODIGO"+GetWhere("=","<CODBRW>"))
+
+       DEFINE BUTTON oBtn;
+       OF oBar;
+       NOBORDER;
+       FONT oFont;
+       FILENAME "BITMAPS\XBROWSE.BMP";
+       TOP PROMPT "Detalles";
+       ACTION EJECUTAR("BRWRUNBRWLINK",<oFrm>:oBrw,"<CODBRW>",<oFrm>:cSql,<oFrm>:nPeriodo,<oFrm>:dDesde,<oFrm>:dHasta,<oFrm>)
+
+       oBtn:cToolTip:="Ejecutar Browse Vinculado(s)"
+       <oFrm>:oBtnRun:=oBtn
+
+
+<EMANAGER_INI_CLICK>
+       <oFrm>:oBrw:bLDblClick:={||EVAL(<oFrm>:oBtnRun:bAction) }
+<EMANAGER_END_CLICK>
+
+   ENDIF
+
+<EMANAGER_INI_2>
+
+
+IF <oFrm>:lBtnRun
+
+     DEFINE BUTTON oBtn;
+            OF oBar;
+            NOBORDER;
+            FONT oFont;
+            MENU EJECUTAR("BRBTNMENU",{"Opcion 1",;
+                                       "Opcion 2",;
+                                       "Opcion 3"},;
+                                       "<oFrm>");
+            FILENAME "BITMAPS\RUN.BMP";
+            TOP PROMPT "Menú";
+            ACTION <oFrm>:BTNRUN()
+
+      oBtn:cToolTip:="Opciones de Ejecucion"
+
+ENDIF
+
+IF <oFrm>:lBtnColor
+
+     <oFrm>:oBtnColor:=NIL
+
+     DEFINE BUTTON oBtn;
+            OF oBar;
+            NOBORDER;
+            FONT oFont;
+            FILENAME "BITMAPS\COLORS.BMP";
+            TOP PROMPT "Color";
+            MENU EJECUTAR("BRBTNMENUCOLOR",<oFrm>:oBrw,<oFrm>,<oFrm>:oBtnColor,{||EJECUTAR("BRWCAMPOSOPC",<oFrm>,.T.)});
+            ACTION EJECUTAR("BRWSELCOLORFIELD",<oFrm>,.T.)
+
+    oBtn:cToolTip:="Personalizar Colores en los Campos"
+
+    <oFrm>:oBtnColor:=oBtn
+
+ENDIF
+
+IF <oFrm>:lBtnSave
+
+      DEFINE BUTTON oBtn;
+             OF oBar;
+             NOBORDER;
+             FONT oFont;
+             FILENAME "BITMAPS\XSAVE.BMP";
+             TOP PROMPT "Guardar";
+             ACTION EJECUTAR("DPBRWSAVE",<oFrm>:oBrw,<oFrm>:oFrm)
+
+ENDIF
+
+IF <oFrm>:lBtnMenuBrw
+
+ DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\BRWMENU.BMP",NIL,"BITMAPS\BRWMENUG.BMP";
+          TOP PROMPT "Menú";
+          ACTION (EJECUTAR("BRWBUILDHEAD",<oFrm>),;
+                  EJECUTAR("DPBRWMENURUN",<oFrm>,<oFrm>:oBrw,<oFrm>:cBrwCod,<oFrm>:cTitle,<oFrm>:aHead));
+          WHEN !Empty(<oFrm>:oBrw:aArrayData[1,1])
+
+   oBtn:cToolTip:="Menú de Opciones"
+
+ENDIF
+
+
+IF <oFrm>:lBtnFind
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\XFIND.BMP";
+          TOP PROMPT "Buscar";
+          ACTION EJECUTAR("BRWSETFIND",<oFrm>:oBrw)
+
+   oBtn:cToolTip:="Buscar"
+ENDIF
+
+IF <oFrm>:lBtnFilters
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\FILTRAR.BMP";
+          TOP PROMPT "Filtrar";
+          MENU EJECUTAR("BRBTNMENUFILTER",<oFrm>:oBrw,<oFrm>);
+          ACTION EJECUTAR("BRWSETFILTER",<oFrm>:oBrw)
+
+   oBtn:cToolTip:="Filtrar Registros"
+ENDIF
+
+IF <oFrm>:lBtnOptions
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\OPTIONS.BMP",NIL,"BITMAPS\OPTIONSG.BMP";
+          TOP PROMPT "Opciones";
+          ACTION EJECUTAR("BRWSETOPTIONS",<oFrm>:oBrw);
+          WHEN LEN(<oFrm>:oBrw:aArrayData)>1
+
+   oBtn:cToolTip:="Filtrar según Valores Comunes"
+
+ENDIF
+
+IF <oFrm>:lBtnRefresh
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\REFRESH.BMP";
+          TOP PROMPT "Refrescar";
+          ACTION <oFrm>:BRWREFRESCAR()
+
+   oBtn:cToolTip:="Refrescar"
+
+ENDIF
+
+IF <oFrm>:lBtnCrystal
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\CRYSTAL.BMP";
+          TOP PROMPT "Crystal";
+          ACTION EJECUTAR("BRWTODBF",<oFrm>)
+
+   oBtn:cToolTip:="Visualizar Mediante Crystal Report"
+
+ENDIF
+
+IF <oFrm>:lBtnExcel
+
+
+     DEFINE BUTTON oBtn;
+            OF oBar;
+            NOBORDER;
+            FONT oFont;
+            FILENAME "BITMAPS\EXCEL.BMP";
+            TOP PROMPT "Excel";
+            ACTION (EJECUTAR("BRWTOEXCEL",<oFrm>:oBrw,<oFrm>:cTitle,<oFrm>:cNombre))
+
+     oBtn:cToolTip:="Exportar hacia Excel"
+
+     <oFrm>:oBtnXls:=oBtn
+
+ENDIF
+
+IF <oFrm>:lBtnHtml
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\html.BMP";
+          TOP PROMPT "Html";
+          ACTION (<oFrm>:HTMLHEAD(),EJECUTAR("BRWTOHTML",<oFrm>:oBrw,NIL,<oFrm>:cTitle,<oFrm>:aHead))
+
+   oBtn:cToolTip:="Generar Archivo html"
+
+   <oFrm>:oBtnHtml:=oBtn
+
+ENDIF
+
+
+IF <oFrm>:lBtnPreview
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\PREVIEW.BMP";
+          TOP PROMPT "Preview";
+          ACTION (EJECUTAR("BRWPREVIEW",<oFrm>:oBrw))
+
+   oBtn:cToolTip:="Previsualización"
+
+   <oFrm>:oBtnPreview:=oBtn
+
+ENDIF
+
+   IF ISSQLGET("DPREPORTES","REP_CODIGO","<CODIGO>")
+
+     DEFINE BUTTON oBtn;
+            OF oBar;
+            NOBORDER;
+            FONT oFont;
+            FILENAME "BITMAPS\XPRINT.BMP";
+            TOP PROMPT "Imprimir";
+            ACTION <oFrm>:IMPRIMIR()
+
+      oBtn:cToolTip:="Imprimir"
+
+     <oFrm>:oBtnPrint:=oBtn
+
+   ENDIF
+
+IF <oFrm>:lBtnQuery
+
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\QUERY.BMP";
+          TOP PROMPT "Consultas";
+          ACTION <oFrm>:BRWQUERY()
+
+   oBtn:cToolTip:="Imprimir"
+
+ENDIF
+
+<EMANAGER_END_2>
+
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\xTOP.BMP";
+          TOP PROMPT "Primero";
+          ACTION (<oFrm>:oBrw:GoTop(),<oFrm>:oBrw:Setfocus())
+
+IF nWidth>800 .OR. nWidth=0
+
+   IF <oFrm>:lBtnPageDown
+
+     DEFINE BUTTON oBtn;
+            OF oBar;
+            NOBORDER;
+            FONT oFont;
+            FILENAME "BITMAPS\xSIG.BMP";
+            TOP PROMPT "Avance";
+            ACTION (<oFrm>:oBrw:PageDown(),<oFrm>:oBrw:Setfocus())
+
+  ENDIF
+
+  IF  <oFrm>:lBtnPageUp
+
+    DEFINE BUTTON oBtn;
+           OF oBar;
+           NOBORDER;
+           FONT oFont;
+           FILENAME "BITMAPS\xANT.BMP";
+           TOP PROMPT "Anterior";
+           ACTION (<oFrm>:oBrw:PageUp(),<oFrm>:oBrw:Setfocus())
+  ENDIF
+
+ENDIF
+
+  DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\xFIN.BMP";
+          TOP PROMPT "Ultimo";
+          ACTION (<oFrm>:oBrw:GoBottom(),<oFrm>:oBrw:Setfocus())
+
+   DEFINE BUTTON oBtn;
+          OF oBar;
+          NOBORDER;
+          FONT oFont;
+          FILENAME "BITMAPS\XSALIR.BMP";
+          TOP PROMPT "Cerrar";
+          ACTION <oFrm>:Close()
+
+  <oFrm>:oBrw:SetColor(0,<oFrm>:nClrPane1)
+
+  IF oDp:lBtnText
+     <oFrm>:SETBTNBAR(oDp:nBtnHeight,oDp:nBtnWidth+3,oBar)
+  ELSE
+     <oFrm>:SETBTNBAR(40,40,oBar)
+  ENDIF
+
+  EVAL(<oFrm>:oBrw:bChange)
+
+  oBar:SetColor(CLR_BLACK,oDp:nGris)
+
+  AEVAL(oBar:aControls,{|o,n|o:SetColor(CLR_BLACK,oDp:nGris)})
+
+  <oFrm>:oBar:=oBar
+
+  <GETFECHAS>
+
+RETURN .T.
+
+/*
+// Evento para presionar CLICK
+*/
+FUNCTION RUNCLICK()
+<EMVAR_INI>
+   LOCAL aLine:=<oFrm>:oBrw:aArrayData[<oFrm>:oBrw:nArrayAt]
+   EJECUTAR("EMSETVARS","<BRWCOD>",aLine,<oFrm>,NIL,.T.,<oFrm>:oBtnRun:bAction)
+<EMVAR_END>
+
+RETURN .T.
+
+
+/*
+// Imprimir
+*/
+FUNCTION IMPRIMIR()
+  LOCAL oRep,cWhere
+
+  oRep:=REPORTE("<CODIGO>",cWhere)
+  oRep:cSql  :=<oFrm>:cSql
+  oRep:cTitle:=<oFrm>:cTitle
+
+RETURN .T.
+
+FUNCTION LEEFECHAS()
+  LOCAL nPeriodo:=<oFrm>:oPeriodo:nAt,cWhere
+
+  <oFrm>:nPeriodo:=nPeriodo
+
+
+  IF <oFrm>:oPeriodo:nAt=LEN(<oFrm>:oPeriodo:aItems)
+
+     <oFrm>:oDesde:ForWhen(.T.)
+     <oFrm>:oHasta:ForWhen(.T.)
+     <oFrm>:oBtn  :ForWhen(.T.)
+
+     DPFOCUS(<oFrm>:oDesde)
+
+  ELSE
+
+     <oFrm>:aFechas:=EJECUTAR("DPDIARIOGET",nPeriodo)
+
+     <oFrm>:oDesde:VarPut(<oFrm>:aFechas[1] , .T. )
+     <oFrm>:oHasta:VarPut(<oFrm>:aFechas[2] , .T. )
+
+     <oFrm>:dDesde:=<oFrm>:aFechas[1]
+     <oFrm>:dHasta:=<oFrm>:aFechas[2]
+
+     cWhere:=<oFrm>:HACERWHERE(<oFrm>:dDesde,<oFrm>:dHasta,<oFrm>:cWhere,.T.)
+
+     <oFrm>:LEERDATA(cWhere,<oFrm>:oBrw,<oFrm>:cServer,<oFrm>)
+
+  ENDIF
+
+  <oFrm>:SAVEPERIODO()
+
+RETURN .T.
+
+
+FUNCTION HACERWHERE(dDesde,dHasta,cWhere_,lRun)
+   LOCAL cWhere:=""
+
+   DEFAULT lRun:=.F.
+
+   // Campo fecha no puede estar en la nueva clausula
+   IF "<CAMPOFECHA>"$cWhere
+     RETURN ""
+   ENDIF
+
+   IF !Empty(dDesde)
+       <WHEREFECHA>
+   ELSE
+     IF !Empty(dHasta)
+       <WHEREFECHA>
+     ENDIF
+   ENDIF
+
+
+   IF !Empty(cWhere_)
+      cWhere:=cWhere + IIF( Empty(cWhere),""," AND ") +cWhere_
+   ENDIF
+
+   IF lRun
+
+     IF !Empty(<oFrm>:cWhereQry)
+       cWhere:=cWhere + <oFrm>:cWhereQry
+     ENDIF
+
+     <oFrm>:LEERDATA(cWhere,<oFrm>:oBrw,<oFrm>:cServer,<oFrm>)
+
+   ENDIF
+
+
+RETURN cWhere
+
+
+FUNCTION LEERDATA(cWhere,oBrw,cServer,<oFrm>)
+   LOCAL aData:={},aTotal:={},oCol,cSql,aLines:={}
+   LOCAL oDb
+   LOCAL nAt,nRowSel
+
+   DEFAULT cWhere:=""
+
+   IF !Empty(cServer)
+
+     IF !EJECUTAR("DPSERVERDBOPEN",cServer)
+        RETURN .F.
+     ENDIF
+
+     oDb:=oDp:oDb
+
+   ENDIF
+
+   cWhere:=IIF(Empty(cWhere),"",ALLTRIM(cWhere))
+
+   IF !Empty(cWhere) .AND. LEFT(cWhere,5)="WHERE"
+      cWhere:=SUBS(cWhere,6,LEN(cWhere))
+   ENDIF
+
+   cSql:=<CSQL>
+
+/*
+   IF Empty(cWhere)
+     cSql:=STRTRAN(cSql,"<WHERE>","")
+   ELSE
+     cSql:=STRTRAN(cSql,"<WHERE>"," WHERE "+cWhere)
+   ENDIF
+*/
+   IF !Empty(cWhere)
+      cSql:=EJECUTAR("SQLINSERTWHERE",cSql,cWhere)
+   ENDIF
+
+   cSql:=EJECUTAR("WHERE_VAR",cSql)
+
+
+   oDp:lExcluye:=<BRW_FILTRO>
+
+   DPWRITE("TEMP\<CODIGO>.SQL",cSql)
+
+   aData:=ASQL(cSql,oDb)
+
+   oDp:cWhere:=cWhere
+
+
+   IF EMPTY(aData)
+      aData:=EJECUTAR("SQLARRAYEMPTY",cSql,oDb)
+//    AADD(aData,<AVACIO>)
+   ENDIF
+
+   <SAYOPTIONS>
+
+   IF ValType(oBrw)="O"
+
+      <oFrm>:cSql   :=cSql
+      <oFrm>:cWhere_:=cWhere
+
+      aTotal:=ATOTALES(aData)
+
+      oBrw:aArrayData:=ACLONE(aData)
+      // oBrw:nArrayAt  :=1
+      // oBrw:nRowSel   :=1
+
+      // JN 15/03/2020 Sustituido por BRWCALTOTALES
+      EJECUTAR("BRWCALTOTALES",oBrw,.F.)
+
+      nAt    :=oBrw:nArrayAt
+      nRowSel:=oBrw:nRowSel
+
+      oBrw:Refresh(.F.)
+      oBrw:nArrayAt  :=MIN(nAt,LEN(aData))
+      oBrw:nRowSel   :=MIN(nRowSel,oBrw:nRowSel)
+      AEVAL(<oFrm>:oBar:aControls,{|o,n| o:ForWhen(.T.)})
+
+      <oFrm>:SAVEPERIODO()
+
+   ENDIF
+
+RETURN aData
+
+
+FUNCTION SAVEPERIODO()
+  LOCAL cFileMem:="USER\<CODIGO>.MEM",V_nPeriodo:=<oFrm>:nPeriodo
+  LOCAL V_dDesde:=<oFrm>:dDesde
+  LOCAL V_dHasta:=<oFrm>:dHasta
+
+  SAVE TO (cFileMem) ALL LIKE "V_*"
+
+RETURN .T.
+
+/*
+// Permite Crear Filtros para las Búquedas
+*/
+FUNCTION BRWQUERY()
+     EJECUTAR("BRWQUERY",<oFrm>)
+RETURN .T.
+
+/*
+// Ejecución Cambio de Linea
+*/
+FUNCTION BRWCHANGE()
+RETURN NIL
+
+/*
+// Refrescar Browse
+*/
+FUNCTION BRWREFRESCAR()
+    LOCAL cWhere
+
+
+    IF Type("<oFrm>")="O" .AND. <oFrm>:oWnd:hWnd>0
+
+      cWhere:=" "+IIF(!Empty(<oFrm>:cWhere_),<oFrm>:cWhere_,<oFrm>:cWhere)
+      cWhere:=STRTRAN(cWhere," WHERE ","")
+
+      <oFrm>:LEERDATA(<oFrm>:cWhere_,<oFrm>:oBrw,<oFrm>:cServer,<oFrm>)
+      <oFrm>:oWnd:Show()
+      <oFrm>:oWnd:Restore()
+
+    ENDIF
+
+RETURN NIL
+
+FUNCTION BTNRUN()
+    ? "PERSONALIZA FUNCTION DE BTNRUN"
+RETURN .T.
+
+FUNCTION BTNMENU(nOption,cOption)
+
+   ? nOption,cOption,"PESONALIZA LAS SUB-OPCIONES"
+
+   IF nOption=1
+   ENDIF
+
+   IF nOption=2
+   ENDIF
+
+   IF nOption=3
+   ENDIF
+
+RETURN .T.
+
+FUNCTION HTMLHEAD()
+
+   <oFrm>:aHead:=EJECUTAR("HTMLHEAD",<oFrm>)
+
+// Ejemplo para Agregar mas Parámetros
+//   AADD(oDOCPROISLR:aHead,{"Consulta",oDOCPROISLR:oWnd:cTitle})
+
+RETURN
+
+// Restaurar Parametros
+FUNCTION BRWRESTOREPAR()
+  EJECUTAR("BRWRESTOREPAR",<oFrm>)
+RETURN .T.
+
+/*
+// Genera Correspondencia Masiva
+*/
+<CMAIL>
+
+// EOF
+
