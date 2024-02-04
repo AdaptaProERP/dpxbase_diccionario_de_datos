@@ -13,6 +13,7 @@ PROCE MAIN(cWhere,cCodSuc,nPeriodo,dDesde,dHasta,cTitle)
    LOCAL V_dDesde:=CTOD(""),V_dHasta:=CTOD("")
    LOCAL cServer:=oDp:cRunServer
    LOCAL lConectar:=.F.
+   LOCAL aFields  :={}
 
    oDp:cRunServer:=NIL
 
@@ -28,7 +29,7 @@ PROCE MAIN(cWhere,cCodSuc,nPeriodo,dDesde,dHasta,cTitle)
 
      IF !lConectar
         RETURN .F.
-             ENDIF
+     ENDIF
 
    ENDIF
 
@@ -89,6 +90,8 @@ PROCE MAIN(cWhere,cCodSuc,nPeriodo,dDesde,dHasta,cTitle)
 
    ENDIF
 
+   aFields:=ACLONE(oDp:aFields) // genera los campos Virtuales
+
    IF Empty(aData)
       MensajeErr("no hay "+cTitle,"Información no Encontrada")
       RETURN .F.
@@ -144,6 +147,9 @@ FUNCTION ViewData(aData,cTitle,cWhere_)
    <oFrm>:lTmdi    :=<TMDI>
    <oFrm>:aHead    :={}
    <oFrm>:lBarDef  :=.T. // Activar Modo Diseño.
+   <oFrm>:aFields  :=ACLONE(aFields)
+
+   AEVAL(oDp:aFields,{|a,n| <oFrm>:SET("COL_"+a[1],n)}) // Campos Virtuales en el Browse
 
    // Guarda los parámetros del Browse cuando cierra la ventana
    <oFrm>:bValid   :={|| EJECUTAR("BRWSAVEPAR",<oFrm>)}
@@ -163,6 +169,7 @@ FUNCTION ViewData(aData,cTitle,cWhere_)
    <oFrm>:lBtnFilters :=.T.
    <oFrm>:lBtnFind    :=.T.
    <oFrm>:lBtnColor   :=.T.
+   <oFrm>:lBtnZoom    :=.F.
 
    <oFrm>:nClrPane1:=<NCLRPANE1>
    <oFrm>:nClrPane2:=<NCLRPANE2>
@@ -257,7 +264,8 @@ FUNCTION ViewDatBar()
    DEFINE FONT oFont  NAME "Tahoma"   SIZE 0, -10 BOLD
 
    <oFrm>:oFontBtn   :=oFont     // MDI:GOTFOCUS()
-   <oFrm>:nClrPaneBar:=oDp:nGris // MDI:GOTFOCUS() Repintar
+   <oFrm>:nClrPaneBar:=oDp:nGris // MDI:GOTFOCUS()
+   <oFrm>:oBrw:oLbx  :=<oFrm>    // MDI:GOTFOCUS()
 
 <EMANAGER_INI>
 
@@ -271,6 +279,20 @@ FUNCTION ViewDatBar()
 
 <EMANAGER_INI_0> // Emanager no Incluye consulta de Vinculos
 
+
+   IF <oFrm>:lBtnNew
+
+      DEFINE BUTTON oBtn;
+             OF oBar;
+             NOBORDER;
+             FONT oFont;
+             FILENAME "BITMAPS\XNEW.BMP";
+             TOP PROMPT "Incluir";
+             ACTION <oFrm>:BRWADDNEWLINE()
+
+      oBtn:cToolTip:="Incluir"
+
+   ENDIF
 
    IF <LVINCULOS> .AND. Empty(<oFrm>:cServer)
 
@@ -376,9 +398,8 @@ IF <oFrm>:lBtnSave
              NOBORDER;
              FONT oFont;
              FILENAME "BITMAPS\XSAVE.BMP";
-             TOP PROMPT "Guardar";
-             ACTION EJECUTAR("DPBRWSAVE",<oFrm>:oBrw,<oFrm>:oFrm)
-
+             TOP PROMPT "Grabar";
+             ACTION  EJECUTAR("DPBRWSAVE",<oFrm>:oBrw,<oFrm>:oFrm)
 ENDIF
 
 IF <oFrm>:lBtnMenuBrw
@@ -548,6 +569,21 @@ IF <oFrm>:lBtnQuery
    oBtn:cToolTip:="Imprimir"
 
 ENDIF
+
+  IF <oFrm>:lBtnZoom
+
+    DEFINE BUTTON oBtn;
+           OF oBar;
+           NOBORDER;
+           FONT oFont;
+           FILENAME "BITMAPS\ZOOM.BMP";
+           TOP PROMPT "Zoom";
+           ACTION IF(<oFrm>:oWnd:IsZoomed(),<oFrm>:oWnd:Restore(),<oFrm>:oWnd:Maximize())
+
+    oBtn:cToolTip:="Maximizar"
+
+ ENDIF
+
 
 <EMANAGER_END_2>
 
@@ -721,7 +757,7 @@ RETURN cWhere
 
 FUNCTION LEERDATA(cWhere,oBrw,cServer,<oFrm>)
    LOCAL aData:={},aTotal:={},oCol,cSql,aLines:={}
-   LOCAL oDb
+   LOCAL oDb,oTable
    LOCAL nAt,nRowSel
 
    DEFAULT cWhere:=""
@@ -762,7 +798,12 @@ FUNCTION LEERDATA(cWhere,oBrw,cServer,<oFrm>)
 
    DPWRITE("TEMP\<CODIGO>.SQL",cSql)
 
-   aData:=ASQL(cSql,oDb)
+   // aData:=ASQL(cSql,oDb)
+
+   oTable     :=OpenTable(cSql,.T.)
+   aData      :=ACLONE(oTable:aDataFill)
+   oDp:aFields:=ACLONE(oTable:aFields)
+   oTable:End(.T.)
 
    oDp:cWhere:=cWhere
 
@@ -877,6 +918,34 @@ RETURN
 FUNCTION BRWRESTOREPAR()
   EJECUTAR("BRWRESTOREPAR",<oFrm>)
 RETURN .T.
+
+/*
+// Agrega Nueva Linea
+*/
+FUNCTION BRWADDNEWLINE()
+  LOCAL aLine  :=ACLONE(<oFrm>:oBrw:aArrayData[<oFrm>:oBrw:nArrayAt])
+  LOCAL nAt    :=ASCAN(<oFrm>:oBrw:aArrayData,{|a,n| Empty(a[1])})
+
+  IF nAt>0
+     RETURN .F.
+  ENDIF
+
+  AEVAL(aLine,{|a,n| aLine[n]:=CTOEMPTY(aLine[n])})
+
+  AADD(<oFrm>:oBrw:aArrayData,ACLONE(aLine))
+
+  EJECUTAR("BRWCALTOTALES",<oFrm>:oBrw,.F.)
+
+  <oFrm>:oBrw:nColSel:=1
+  <oFrm>:oBrw:GoBottom()
+  <oFrm>:oBrw:Refresh(.F.)
+  <oFrm>:oBrw:nArrayAt:=LEN(<oFrm>:oBrw:aArrayData)
+  <oFrm>:aLineCopy    :=ACLONE(aLine)
+
+  DPFOCUS(<oFrm>:oBrw)
+
+RETURN .T.
+
 
 /*
 // Genera Correspondencia Masiva
