@@ -1,55 +1,90 @@
-COL01_HEADER :=CLI_CODIGO
-COL01_COLUMN :=A
-COL01_DEFAULT:=
-COL01_EMPTY  :=F
-COL01_KEY    :=F
-COL02_HEADER :=CLI_NOMBRE
-COL02_COLUMN :=B
-COL02_DEFAULT:=
-COL02_EMPTY  :=F
-COL02_KEY    :=F
-COL03_HEADER :=CLI_DIR1
-COL03_COLUMN :=C
-COL03_DEFAULT:=
-COL03_EMPTY  :=F
-COL03_KEY    :=F
-COL04_HEADER :=CLI_PARROQ
-COL04_COLUMN :=D
-COL04_DEFAULT:=&oDp:cParroquia
-COL04_EMPTY  :=F
-COL04_KEY    :=F
-COL05_HEADER :=CLI_ACTECO
-COL05_COLUMN :=E
-COL05_DEFAULT:=
-COL05_EMPTY  :=F
-COL05_KEY    :=F
-COL06_HEADER :=CLI_TEL1
-COL06_COLUMN :=G
-COL06_DEFAULT:=
-COL06_EMPTY  :=F
-COL06_KEY    :=F
-COL07_HEADER :=CLI_FECHA
-COL07_COLUMN :=H
-COL07_DEFAULT:=
-COL07_EMPTY  :=F
-COL07_KEY    :=F
-COL08_HEADER :=CLI_EMAIL
-COL08_COLUMN :=I
-COL08_DEFAULT:=
-COL08_EMPTY  :=F
-COL08_KEY    :=F
-COL09_HEADER :=@REPLEGAL_RIF
-COL09_COLUMN :=J
-COL09_DEFAULT:=
-COL09_EMPTY  :=F
-COL09_KEY    :=F
-COL10_HEADER :=@REPLEGAL_NOMBRE
-COL10_COLUMN :=K
-COL10_DEFAULT:=
-COL10_EMPTY  :=F
-COL10_KEY    :=F
-COL11_HEADER :=@REPLEGAL_CORREO
-COL11_COLUMN :=L
-COL11_DEFAULT:=
-COL11_EMPTY  :=F
-COL11_KEY    :=F
+/*
+// Importación de datos desde excel
+// Tabla  <TABLA>
+// Código CLIENTESMOD2
+// Fecha  21/04/2024
+//
+*/
+
+#INCLUDE "DPXBASE.CH"
+
+PROCE MAIN(cCodigo,oMeter,oSay,oMemo)
+    LOCAL cFileDbf,cFileXls,cTable,cCodigo,cWhere
+    LOCAL oTable,oXls
+    LOCAL nLinIni,nContar,I,U
+    LOCAL aRef:={}
+
+    DEFAULT cCodigo:="CLIENTESMOD2"
+
+    oTable  :=OpenTable("SELECT IXL_FILE,IXL_TABLA,IXL_LININI,IXL_MEMO FROM DPIMPRXLS WHERE IXL_CODIGO"+GetWhere("=",cCodigo),.T.)
+    cFileXls:=ALLTRIM(oTable:IXL_FILE  )
+    cTable  :=ALLTRIM(oTable:IXL_TABLA )
+    nLinIni :=MAX(oTable:IXL_LININI,1)
+    aRef    :=EJECUTAR("IXLLOAD",NIL,NIL,NIL,NIL,oTable:IXL_MEMO)
+    AEVAL(aRef,{|a,n| aRef[n,1]:=STRTRAN(a[1],"@","")})
+    oTable:End(.T.)
+
+    IF COUNT(cTable)>0 .AND. MsgYesNo("Desea Remover todos los Registros de la tabla "+cTable)
+      SQLDELETE(cTable)
+    ENDIF
+
+    IF(ValType(oSay)="O",oSay:SetText("Leyendo Archivo"),NIL)
+
+    oXls:=EJECUTAR("XLSTORDD",cFileXls,NIL,oMeter,oSay,NIL,nLinIni)
+
+    IF(oImpXls:lBrowse,oXls:Browse(),NIL)
+
+    IF(ValType(oMeter)="O",oMeter:SetTotal(oXls:RecCount()),NIL)
+
+    oTable:=OpenTable("SELECT * FROM "+cTable, .F. )
+    IF Empty(oTable:aDefault)
+       EJECUTAR("DPTABLESETDEF",oTable) // Facilita Asinar valores por defecto  en :AppendBlank()
+    ENDIF
+    oTable:lAuditar:=.F.
+    oTable:SetForeignkeyOff()
+
+    oXls:Gotop()
+
+    WHILE !oXls:Eof()
+
+      IF(ValType(oSay  )="O",oSay:SetText("Reg:"+GetNumRel(oXls:Recno(),oXls:RecCount())),NIL)
+      IF(ValType(oMeter)="O",oMeter:Set(oXls:Recno()),NIL)
+
+      // Asigna los valores desde oXls->oRef oReg:RIF = oXls:A
+      AEVAL(aRef,{|a,n| aRef[n,2]:=MacroEje("oXls:COL_"+a[3]),;
+                        oRef:Set(aRef[n,1],aRef[n,2])})
+
+      cCodigo:=STRTRAN(ALLTRIM(oXls:COL_A),"-","")
+      cCodigo:=STRTRAN(cCodigo,";","")
+      cCodigo:=STRTRAN(cCodigo,"/","")
+
+      IF Empty(cCodigo)
+         oXls:DbSkip()
+         LOOP
+      ENDIF
+
+      IF(ValType(oMemo)="O",oMemo:Append("#"+LSTR(oXls:Recno())+"->"+cCodigo+CRLF),NIL)
+
+      cWhere    :="CLI_CODIGO"+GetWhere("=",cCodigo)
+
+      IF !ISSQLFIND(cTable,cWhere)
+        oTable:AppendBlank()
+        oTable:Replace("CLI_CODIGO",cCodigo)
+        AEVAL(aRef,{|a,n| oTable:Replace(a[1],a[2])})
+        oTable:Commit("")
+      ELSE
+        // Actualiza el registro en caso de ser necesario
+        // SQLUPDATE(cTable,{"FIELD1","FIELD2"},{oXls:COL_B,oXls:COL_C},cWhere)
+      ENDIF
+
+      oXls:DbSkip()
+
+   ENDDO
+
+   IF(ValType(oMeter)="O",oMeter:Set(oXls:RecCount()),NIL)
+   IF(ValType(oMemo )="O",oMemo:Append("Importación Concluida"+CRLF),NIL)
+
+   oTable:End(.T.)
+   oXls:End()
+
+RETURN .T.
