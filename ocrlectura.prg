@@ -15,7 +15,7 @@ PROCE MAIN(cFileOrg,cFileOut,lRun,lView)
   LOCAL cRunBat :="tesseract_run.bat"
 
   DEFAULT oDp:cBinOcr:="C:\Program Files\Tesseract-OCR\tesseract.exe",;
-          cFileOrg   :=oDp:cBin+"ejemplo\asientos.png"  ,;
+          cFileOrg   :=oDp:cBin+"ejemplo\CEPP.png"  ,;
           cFileOut   :=oDp:cBin+"temp\"+cFileName(cFileNoExt(cFileOrg)),;
           lView      :=.T.
 
