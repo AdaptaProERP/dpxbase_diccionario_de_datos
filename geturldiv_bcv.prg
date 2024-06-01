@@ -203,6 +203,14 @@ PROCE MAIN(lSave,lwinhttp,lSay)
   cWhere:="HMN_CODIGO"+GetWhere("=",oDp:cUsdBcv  )+" AND "+;
           "HMN_FECHA "+GetWhere("=",oDp:dFechaBcv)
 
+  // Martes BCV publica el valor del dolar 04/06/2024 lunes fue feriado, hoy sabado 01 de junio no tiene valor 
+  IF oDp:nUsdBcv>0 .AND. DOW(oDp:dFechaBcv)=3 .AND. (DOW(dFecha)=7 .OR. DOW(dFecha)=1)
+
+    EJECUTAR("CREATERECORD","DPHISMON",{"HMN_CODIGO","HMN_FECHA"  ,"HMN_HORA","HMN_VALOR"},;
+                                       {oDp:cUsdBcv ,dFecha       ,"00:00:00",oDp:nUsdBcv},NIL,.T.,;
+                                       "HMN_CODIGO"+GetWhere("=",oDp:cUsdBcv  )+" AND HMN_FECHA "+GetWhere("=",dFecha))
+
+  ENDIF
 
   IF oDp:nUsdBcv>0
 
