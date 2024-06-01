@@ -203,12 +203,23 @@ PROCE MAIN(lSave,lwinhttp,lSay)
   cWhere:="HMN_CODIGO"+GetWhere("=",oDp:cUsdBcv  )+" AND "+;
           "HMN_FECHA "+GetWhere("=",oDp:dFechaBcv)
 
-  // Martes BCV publica el valor del dolar 04/06/2024 lunes fue feriado, hoy sabado 01 de junio no tiene valor 
-  IF oDp:nUsdBcv>0 .AND. DOW(oDp:dFechaBcv)=3 .AND. (DOW(dFecha)=7 .OR. DOW(dFecha)=1)
+  // Martes BCV publica el valor del dolar 04/06/2024 lunes 03/06/2024 es feriado, hoy sabado 01 de junio no tiene valor 
+  IF oDp:nUsdBcv>0 .AND. DOW(oDp:dFechaBcv)=3 .AND. DOW(dFecha)=7 
 
+    // Inserta dia Sabado
     EJECUTAR("CREATERECORD","DPHISMON",{"HMN_CODIGO","HMN_FECHA"  ,"HMN_HORA","HMN_VALOR"},;
                                        {oDp:cUsdBcv ,dFecha       ,"00:00:00",oDp:nUsdBcv},NIL,.T.,;
                                        "HMN_CODIGO"+GetWhere("=",oDp:cUsdBcv  )+" AND HMN_FECHA "+GetWhere("=",dFecha))
+
+    // Inserta dia Domingo
+    EJECUTAR("CREATERECORD","DPHISMON",{"HMN_CODIGO","HMN_FECHA"  ,"HMN_HORA","HMN_VALOR"},;
+                                       {oDp:cUsdBcv ,dFecha+1     ,"00:00:00",oDp:nUsdBcv},NIL,.T.,;
+                                       "HMN_CODIGO"+GetWhere("=",oDp:cUsdBcv  )+" AND HMN_FECHA "+GetWhere("=",dFecha+1))
+
+    // Inserta dia Lunes
+    EJECUTAR("CREATERECORD","DPHISMON",{"HMN_CODIGO","HMN_FECHA"  ,"HMN_HORA","HMN_VALOR"},;
+                                       {oDp:cUsdBcv ,dFecha+2     ,"00:00:00",oDp:nUsdBcv},NIL,.T.,;
+                                       "HMN_CODIGO"+GetWhere("=",oDp:cUsdBcv  )+" AND HMN_FECHA "+GetWhere("=",dFecha+2))
 
   ENDIF
 
