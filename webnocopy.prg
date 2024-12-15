@@ -10,7 +10,7 @@
 
 PROCE MAIN(cUrl)
 
-  DEFAULT cUrl:="https://finanzasdigital.com/gaceta-oficial-extraordinaria-6805/"
+  DEFAULT cUrl:=SPACE(200)
 
   lMkDir("download")
 
@@ -74,7 +74,7 @@ FUNCTION WEBLEE()
   LOCAL cUrl    :=ALLTRIM(oWebNoCopy:cUrl)
   LOCAL cFile   :="TEMP\TEMP.TXT"
   LOCAL cMemo   :="",oHttp
-  LOCAL aAscii  :=EJECUTAR("LOADASCIITOWEB") // Caracteres de Conversión
+  LOCAL aAscii  :=EJECUTAR("LOADASCIITOWEB") // Caracteres de Conversión https://github.com/AdaptaProERP/dpxbase_diccionario_de_datos/blob/main/loadasciitoweb.prg
 
   SAVE TO (cFileMem) ALL LIKE "cUrl*"
 
